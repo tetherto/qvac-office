@@ -3,6 +3,15 @@
 What would make `@qvac/office` better for its main caller, an LLM using it through tool calls.
 The ordering is by value to that caller. Items marked _seen_ came up while building the editor.
 
+Status, 2026-10-28:
+
+- Sections 1 to 6 are implemented.
+- Section 7 needs the layout map from bare-x-to-pdf; the library side is in place (slide size, stable ids, run-level read).
+- Section 8 is a change to the harness.
+- Two gaps remain:
+  - Errors raised by code older than this work carry no `details` yet.
+  - The Open XML validator runs in CI; it was not run locally.
+
 ## 1. A tool surface owned by the library
 
 - **Ship the operation catalog and JSON Schemas.** The harness keeps its own op table
