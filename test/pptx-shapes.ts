@@ -61,7 +61,8 @@ test('setBox moves and resizes, filling in inherited geometry', (t) => {
     x: 457200,
     y: 457200,
     width: 8229600,
-    height: 1143000
+    height: 1143000,
+    overlaps: []
   })
   deck.setBox(
     { slide: 2, shape: 4 },

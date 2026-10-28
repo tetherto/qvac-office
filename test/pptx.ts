@@ -335,7 +335,14 @@ test('addPicture embeds media sized by aspect ratio', (t) => {
     y: units.inches(1),
     width: units.inches(4)
   })
-  t.alike(placed, { id: 4, x: 914400, y: 914400, width: 3657600, height: 1828800 })
+  t.alike(placed, {
+    id: 4,
+    x: 914400,
+    y: 914400,
+    width: 3657600,
+    height: 1828800,
+    overlaps: [2, 3]
+  })
 
   const files = unzip(deck.save())
   t.ok(files['ppt/media/image2.png'])

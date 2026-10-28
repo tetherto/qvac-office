@@ -75,7 +75,14 @@ export const CODES = {
   TABLE_IS_REFERENCED: 'formulas use the table in a form that cannot become a plain range',
   FIELD_TEXT: 'the matched text is a field result that Word recalculates',
   RANGE_BOUNDARY: 'the matched text crosses the edge of a hyperlink or content control',
-  ALREADY_LINKED: 'the matched text is already inside a hyperlink'
+  ALREADY_LINKED: 'the matched text is already inside a hyperlink',
+  NOT_PLACEHOLDER: 'the shape named by into is not a placeholder',
+  PLACEHOLDER_HAS_TEXT:
+    'the placeholder holds content; pass replace: true to put the shape in its place',
+  NOT_SHAPE: 'the shape takes no fill or outline (a table, chart, group or frame)',
+  CANNOT_GROUP: 'the shapes cannot be grouped (placeholders, fewer than two, or different parents)',
+  NOT_GROUP: 'the shape is not a group',
+  UNSUPPORTED_SHAPE: 'the shape holds content that this edit cannot handle yet'
 } as const
 
 export type DocsErrorCode = keyof typeof CODES

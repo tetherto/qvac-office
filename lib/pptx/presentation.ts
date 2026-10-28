@@ -82,6 +82,37 @@ import type {
 } from './text-ranges.ts'
 import type { Search } from '../drawingml/ranges.ts'
 import * as units from '../units.ts'
+import * as sizing from './size.ts'
+import * as fills from './fill.ts'
+import * as zorder from './order.ts'
+import * as grouping from './group.ts'
+import * as themes from './theme.ts'
+import { overlaps } from './overlaps.ts'
+import { claim, checkInto, type Claim } from './into.ts'
+import { duplicate } from './duplicate.ts'
+import { relayout } from './relayout.ts'
+import { slideBox } from './geometry.ts'
+import type {
+  Size,
+  SizePreset,
+  SizeInput,
+  SizeOptions,
+  Resized,
+  IntoOptions,
+  PlacedResult,
+  Line,
+  DuplicateOptions,
+  Duplicated,
+  ZOrder,
+  Reordered,
+  GroupOptions,
+  Grouped,
+  Ungrouped,
+  Theme,
+  ThemeInput,
+  ThemeChanged,
+  Relayout
+} from './layout-types.ts'
 
 interface Located {
   entry: slides.SlideEntry
@@ -127,6 +158,7 @@ const TITLE_TYPES = new Set(['title', 'ctrTitle'])
 const SVG_BLIP_EXT = '{96DAC541-7B7A-43D3-8B79-37D633B846F1}'
 const BOX_KEYS = ['x', 'y', 'width', 'height'] as const
 const EMU_PER_PIXEL = 9525
+const DUPLICATE_OFFSET = 228600
 const EMPTY_SLIDE = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sld xmlns:a="${A}" xmlns:r="${R}" xmlns:p="${P}"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr></p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`
 
@@ -606,35 +638,28 @@ export class Presentation {
   addPicture(
     slide: SlideRef,
     bytes: Uint8Array,
-    input: units.WithLengths<PictureOptions, units.BoxKey> = {}
-  ): PlacedShape {
+    input: units.WithLengths<PictureOptions & IntoOptions, units.BoxKey> = {}
+  ): PlacedResult {
     const opts = units.box(input)
     const entry = slides.slideAt(this.deck, slide)
-    const area = this.pictureArea(entry.part, opts)
-    const box = this.pictureBox(probe(bytes), opts, area.box)
-    const { rId } = media.addImage(this.package, bytes, { source: entry.part, dir: '../media' })
+    const into = this.claimInto(slide, opts)
+    const info = probe(bytes)
     const doc = this.package.xml(entry.part)
     const id = nextShapeId(doc)
-    for (const shape of area.cleared) {
-      xml.remove(shape.el)
-    }
-
-    if (area.beside) {
-      this.narrow(entry.part, area.beside)
-    }
-
+    const box = into ? fitted(info, into.box) : this.autoPicture(entry.part, info, opts)
+    const { rId } = media.addImage(this.package, bytes, { source: entry.part, dir: '../media' })
     this.spTree(entry.part).appendChild(
       pictureElement(doc, { id, rId, box, name: opts.name, description: opts.description })
     )
     this.package.touch(entry.part)
 
-    return { id, ...box }
+    return this.placed(slide, { id, ...box }, into)
   }
 
   addTextBox(
     slide: SlideRef,
     input: units.WithLengths<TextBoxOptions, units.BoxKey> = {}
-  ): PlacedShape {
+  ): PlacedResult {
     const opts = units.box(input)
     const entry = slides.slideAt(this.deck, slide)
     const doc = this.package.xml(entry.part)
@@ -651,15 +676,19 @@ export class Presentation {
     this.spTree(entry.part).appendChild(el)
     this.package.touch(entry.part)
 
-    return { id, ...box }
+    return this.placed(slide, { id, ...box }, null)
   }
 
-  addTable(slide: SlideRef, input: units.WithLengths<TableOptions, units.BoxKey>): PlacedShape {
+  addTable(
+    slide: SlideRef,
+    input: units.WithLengths<TableOptions & IntoOptions, units.BoxKey>
+  ): PlacedResult {
     const opts = units.box(input)
     const entry = slides.slideAt(this.deck, slide)
+    const into = this.claimInto(slide, opts)
     const doc = this.package.xml(entry.part)
     const id = nextShapeId(doc)
-    const box = this.box(opts)
+    const box = into ? into.box : this.box(opts)
     const el = tableElement(doc, {
       id,
       box,
@@ -671,13 +700,17 @@ export class Presentation {
     this.spTree(entry.part).appendChild(el)
     this.package.touch(entry.part)
 
-    return { id, ...box }
+    return this.placed(slide, { id, ...box }, into)
   }
 
-  addChart(slide: SlideRef, input: units.WithLengths<ChartOptions, units.BoxKey>): PlacedShape {
+  addChart(
+    slide: SlideRef,
+    input: units.WithLengths<ChartOptions & IntoOptions, units.BoxKey>
+  ): PlacedResult {
     const spec = units.box(input)
     const entry = slides.slideAt(this.deck, slide)
-    const box = this.box(spec)
+    const into = this.claimInto(slide, spec)
+    const box = into ? into.box : this.box(spec)
     const part = this.package.freeName('/ppt/charts/chart%d.xml')
     chart.createChart({ pkg: this.package, part }, spec)
     const rId = this.package.rels(entry.part).add(REL.chart, part)
@@ -685,7 +718,7 @@ export class Presentation {
     const id = nextShapeId(doc)
     this.spTree(entry.part).appendChild(chartFrameElement(doc, { id, box, rId, name: spec.name }))
     this.package.touch(entry.part)
-    return { id, ...box }
+    return this.placed(slide, { id, ...box }, into)
   }
 
   setChartData(target: ShapeRef, data: ChartData): DataResult {
@@ -738,29 +771,11 @@ export class Presentation {
     return result
   }
 
-  setBox(target: ShapeRef, raw: units.WithLengths<Partial<Box>, units.BoxKey>): PlacedShape {
-    const input = units.box(raw)
-    const { entry, found } = this.locate(target)
-    const box = checkBox(input)
-    const current = inherit.box({ pkg: this.package, slide: entry.part, el: found.el })
-    const merged = { ...current, ...box }
-    const { x, y, width, height } = merged
-    if (x === undefined || y === undefined || width === undefined || height === undefined) {
-      throw new DocsError(
-        'INVALID_BOX',
-        `shape ${found.id} has no position to start from; give x, y, width and height`
-      )
-    }
+  setBox(target: ShapeRef, raw: units.WithLengths<Partial<Box>, units.BoxKey>): PlacedResult {
+    const moved = this.moveShape(target, raw)
+    const { entry, found } = this.locate({ slide: target.slide, shape: moved.id })
 
-    if (width === 0 || height === 0) {
-      throw new DocsError('INVALID_BOX', 'the shape would have no visible size')
-    }
-
-    const next = { x, y, width, height }
-    writeXfrm(found.el, next)
-    this.touchSlide(entry.part)
-
-    return { id: found.id ?? 0, ...next }
+    return { ...moved, overlaps: this.overlapsOf(entry.part, found.el) }
   }
 
   replacePicture(target: ShapeRef, bytes: Uint8Array, opts: ReplaceOptions = {}): ReplacedPicture {
@@ -787,7 +802,7 @@ export class Presentation {
     let result: ReplacedPicture = { id: found.id }
     if (current) {
       const next = opts.stretch ? current : fitted(info, current)
-      result = this.setBox({ slide: target.slide, shape: found.id ?? target.shape }, next)
+      result = this.moveShape({ slide: target.slide, shape: found.id ?? target.shape }, next)
     }
 
     this.touchSlide(entry.part)
@@ -878,6 +893,105 @@ export class Presentation {
 
   link(target: ShapeRef, search: Search, url: string): LinkedText {
     return textRanges.link(this.textContext, { target, search, url })
+  }
+
+  size(): Size {
+    return sizing.read(this.deck)
+  }
+
+  setSize(value: SizePreset | SizeInput, opts: SizeOptions = {}): Resized {
+    return sizing.write(this.deck, value, opts.scale === true)
+  }
+
+  setFill(target: ShapeRef, color: string | null): Changed {
+    const { entry, found } = this.locate(target)
+    fills.setFill(found, color)
+    this.package.touch(entry.part)
+    return { changed: true }
+  }
+
+  setLine(target: ShapeRef, line: Line | null): Changed {
+    const { entry, found } = this.locate(target)
+    fills.setLine(found, line)
+    this.package.touch(entry.part)
+    return { changed: true }
+  }
+
+  duplicateShape(target: ShapeRef, opts: DuplicateOptions = {}): Duplicated {
+    const at = { slide: opts.slide, x: units.length(opts.x, 'x'), y: units.length(opts.y, 'y') }
+    checkPlacement(at)
+    const { entry, found } = this.locate(target)
+    const slide = slides.slideIndex(this.deck, at.slide ?? target.slide)
+    const dest = slides.slideAt(this.deck, slide)
+    const source = slideBox({ pkg: this.package, slide: entry.part, el: found.el })
+    if (!source) {
+      throw new DocsError('INVALID_BOX', `shape ${found.id} has no position to copy`)
+    }
+
+    const el = duplicate({ pkg: this.package, from: entry.part, to: dest.part }, found)
+    this.spTree(dest.part).appendChild(el)
+    this.touchSlide(dest.part)
+    const id = Number(xml.descendants(el, P, 'cNvPr')[0]?.getAttribute('id'))
+    const offset = dest.part === entry.part && at.x === undefined && at.y === undefined
+    const shift = offset ? DUPLICATE_OFFSET : 0
+    const box = { ...source, x: at.x ?? source.x + shift, y: at.y ?? source.y + shift }
+    const placed = this.setBox({ slide, shape: id }, box)
+
+    return { slide, ...placed }
+  }
+
+  reorder(target: ShapeRef, order: ZOrder): Reordered {
+    const { entry, found } = this.locate(target)
+    const result = zorder.reorder(found.el, order)
+    this.package.touch(entry.part)
+    return result
+  }
+
+  group(slide: SlideRef, shapeIds: number[], opts: GroupOptions = {}): Grouped {
+    const entry = slides.slideAt(this.deck, slide)
+    const ids: unknown = shapeIds
+    if (!Array.isArray(ids) || new Set(ids).size !== ids.length) {
+      throw new DocsError('CANNOT_GROUP', 'shapeIds must list distinct shape ids', {
+        field: 'shapeIds',
+        got: ids
+      })
+    }
+
+    const shapes = ids.map((shape) => this.locate({ slide, shape }).found)
+    const result = grouping.group(shapes, opts.name)
+    this.touchSlide(entry.part)
+
+    return result
+  }
+
+  ungroup(target: ShapeRef): Ungrouped {
+    const { entry, found } = this.locate(target)
+    const removed =
+      found.kind === 'group' && this.dropAnimations(entry.part, new Set([String(found.id)]))
+    const children = grouping.ungroup(found)
+    this.touchSlide(entry.part)
+    const result: Ungrouped = { ungrouped: found.id ?? 0, children }
+    if (removed) {
+      result.removed = { animations: true }
+    }
+
+    return result
+  }
+
+  theme(): Theme {
+    return themes.read(this.deck)
+  }
+
+  setTheme(input: ThemeInput): ThemeChanged {
+    return themes.write(this.deck, input)
+  }
+
+  setLayout(slide: SlideRef, layoutName: string): Relayout {
+    const entry = slides.slideAt(this.deck, slide)
+    const layout = slides.pickLayout(this.deck, { layout: layoutName })
+    const result = relayout({ pkg: this.package, slide: entry.part, layout })
+    this.touchSlide(entry.part)
+    return result
   }
 
   private get textContext(): DeckText {
@@ -1139,5 +1253,87 @@ export class Presentation {
     const y = opts.y ?? Math.max(0, area.y + Math.round((area.height - height) / 2))
 
     return { x, y, width, height }
+  }
+
+  private moveShape(
+    target: ShapeRef,
+    raw: units.WithLengths<Partial<Box>, units.BoxKey>
+  ): PlacedShape {
+    const input = units.box(raw)
+    const { entry, found } = this.locate(target)
+    const box = checkBox(input)
+    const current = inherit.box({ pkg: this.package, slide: entry.part, el: found.el })
+    const merged = { ...current, ...box }
+    const { x, y, width, height } = merged
+    if (x === undefined || y === undefined || width === undefined || height === undefined) {
+      throw new DocsError(
+        'INVALID_BOX',
+        `shape ${found.id} has no position to start from; give x, y, width and height`
+      )
+    }
+
+    if (width === 0 || height === 0) {
+      throw new DocsError('INVALID_BOX', 'the shape would have no visible size')
+    }
+
+    const next = { x, y, width, height }
+    writeXfrm(found.el, next)
+    this.touchSlide(entry.part)
+
+    return { id: found.id ?? 0, ...next }
+  }
+
+  private claimInto(slide: SlideRef, opts: Placement & IntoOptions): Claim | null {
+    checkInto(opts)
+    if (opts.into === undefined) {
+      return null
+    }
+
+    const { entry, found } = this.locate({ slide, shape: opts.into })
+
+    return claim({ pkg: this.package, part: entry.part }, found, opts.replace === true)
+  }
+
+  private autoPicture(part: string, info: ImageInfo, opts: Placement): Box {
+    const area = this.pictureArea(part, opts)
+    const box = this.pictureBox(info, opts, area.box)
+    for (const shape of area.cleared) {
+      xml.remove(shape.el)
+    }
+
+    if (area.beside) {
+      this.narrow(part, area.beside)
+    }
+
+    return box
+  }
+
+  private placed(slide: SlideRef, shape: PlacedShape, into: Claim | null): PlacedResult {
+    if (into) {
+      this.deleteShape({ slide, shape: into.id })
+    }
+
+    const { entry, found } = this.locate({ slide, shape: shape.id })
+    const result: PlacedResult = { ...shape, overlaps: this.overlapsOf(entry.part, found.el) }
+    if (into) {
+      result.replaced = into.id
+    }
+
+    return result
+  }
+
+  private overlapsOf(part: string, el: Element): number[] {
+    return overlaps({ pkg: this.package, slide: part, size: this.slideSize }, el)
+  }
+
+  private dropAnimations(part: string, ids: Set<string>): boolean {
+    const timing = xml.child(this.package.root(part), P, 'timing')
+    if (!timing || !xml.descendants(timing, P, 'spTgt').some((t) => ids.has(xml.attr(t, 'spid')))) {
+      return false
+    }
+
+    xml.remove(timing)
+
+    return true
   }
 }

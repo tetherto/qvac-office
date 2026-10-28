@@ -71,7 +71,28 @@ kind, text }]`; `text` and `name` match a substring (or a regular expression wit
 - `addTextBox(slide, opts)`, `addTable(slide, opts)`, `setBackground(slide, color)`
 - `addChart(slide, spec)`, `setChartData(target, data)`, `setChartTitle(target, title)`
 - `deleteShape(target)`, `setBox(target, box)`, `setNotes(slide, text)`
+- `size()`, `setSize('16:9' | '4:3' | { width, height }, { scale })` — shapes, layouts and
+  masters keep their positions unless `scale: true` stretches them (fonts are not resized)
+- `setFill(target, color | null)`, `setLine(target, { color, width, dash } | null)` — `null`
+  means no fill or no outline
+- `duplicateShape(target, { slide, x, y })` — a copy on the same slide moves 0.25in down and
+  right unless placed; a chart gets its own chart part and workbook
+- `reorder(target, 'front' | 'back' | 'forward' | 'backward')`, among the shape's siblings
+- `group(slide, shapeIds, { name })`, `ungroup(target)` — placeholders cannot be grouped
+- `theme()`, `setTheme({ colors, fonts: { heading, body } })` — edits every master's theme
+- `setLayout(slide, name)` — moves placeholders to the new layout's slots by role (title,
+  subtitle, body, then the same type or a content slot), adds the new layout's empty
+  placeholders, drops empty ones with no slot and reports as `kept` those with content, which
+  stay where they were
 - `pptx.create({ size, fonts, colors, title })`
+
+Every add and `setBox` reports `overlaps`: the ids of other top-level shapes on the slide
+whose boxes intersect the new one, leaving out empty placeholders, hidden shapes, date, footer
+and slide-number placeholders, and pictures covering 90% or more of the slide (backgrounds).
+`addPicture`, `addTable` and `addChart` take `into: 'body' | 'title' | id` to put the shape in
+a placeholder's box (inherited from the layout); the placeholder is removed and reported as
+`replaced`. A placeholder with content is refused with `PLACEHOLDER_HAS_TEXT` unless
+`replace: true`. A picture keeps its aspect ratio, centred in the box.
 
 ## Word
 

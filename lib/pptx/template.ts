@@ -126,7 +126,7 @@ const DEFAULT_COLORS: Record<ThemeColor, string> = {
 
 const DEFAULT_FONTS: ThemeFonts = { heading: 'Calibri Light', body: 'Calibri' }
 
-const SCHEME_NAMES: Record<ThemeColor, string> = {
+export const SCHEME_NAMES: Record<ThemeColor, string> = {
   dark1: 'dk1',
   light1: 'lt1',
   dark2: 'dk2',
@@ -174,7 +174,7 @@ function inRange(n: unknown): n is number {
   return typeof n === 'number' && Number.isInteger(n) && n >= 914400 && n <= 51206400
 }
 
-function resolveSize(value: unknown): SlideSize {
+export function resolveSize(value: unknown): SlideSize {
   const raw = sizeSource(value)
   const width = raw?.width
   const height = raw?.height

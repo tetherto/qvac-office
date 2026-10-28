@@ -251,6 +251,42 @@ function editedSales(bytes: Uint8Array): Uint8Array {
   return w.save()
 }
 
+function laidOutDeck(): Uint8Array {
+  const deck = pptx.create({ size: '4:3' })
+  deck.setSize('16:9', { scale: true })
+  deck.setTheme({ colors: { accent1: '1A73E8' }, fonts: { heading: 'Georgia' } })
+  deck.addSlide({ title: 'Chart' })
+  const placed = deck.addChart(0, { type: 'column', into: 'body', ...chart })
+  const cover = deck.addSlide({ layout: 'Two Content', title: 'Shapes', body: 'Left' })
+  const box = deck.addTextBox(cover.index, { text: 'Boxed', x: '1in', y: '5in', width: '3in' })
+  deck.setFill({ slide: cover.index, shape: box.id }, 'F1F3F4')
+  deck.setLine(
+    { slide: cover.index, shape: box.id },
+    { color: '1A73E8', width: '2pt', dash: 'dash' }
+  )
+  const picture = deck.addPicture(cover.index, png, { into: cover.shapes[2]?.id ?? 'body' })
+  deck.duplicateShape({ slide: cover.index, shape: picture.id })
+  deck.duplicateShape({ slide: 0, shape: placed.id }, { slide: cover.index, x: '6in', y: '5in' })
+  deck.reorder({ slide: cover.index, shape: box.id }, 'front')
+  const grouped = deck.group(cover.index, [box.id, picture.id], { name: 'Pair' })
+  deck.addSlide({ layout: 'Title Slide', title: 'Moved', body: 'Subtitle' })
+  deck.setLayout(2, 'Title Only')
+  deck.ungroup({ slide: cover.index, shape: grouped.id })
+
+  return deck.save()
+}
+
+function editedLayout(bytes: Uint8Array): Uint8Array {
+  const d = pptx.open(bytes)
+  d.setLayout(1, 'Two Content')
+  d.group(2, [3, 4])
+  d.duplicateShape({ slide: 2, shape: 5 }, { slide: 0 })
+  d.setTheme({ colors: { accent2: 'C0392B' } })
+  d.setSize('16:9', { scale: true })
+
+  return d.save()
+}
+
 fs.mkdirSync(out, { recursive: true })
 write('created.pptx', createdDeck())
 write('created.docx', createdDocument())
@@ -261,6 +297,8 @@ pair('edited-charts.pptx', fixture('charts.pptx'), editedCharts)
 pair('edited-report.docx', fixture('report.docx'), editedReport)
 pair('edited-report-text.docx', fixture('report.docx'), textEditedReport)
 pair('edited-sales.xlsx', fixture('sales.xlsx'), editedSales)
+write('laid-out.pptx', laidOutDeck())
+pair('edited-layout.pptx', fixture('basic.pptx'), editedLayout)
 for (const [name, outcome] of Object.entries(expected())) {
   if (outcome !== 'ok') continue
   const [format, file] = name.split('/')

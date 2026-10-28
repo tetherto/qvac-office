@@ -235,7 +235,7 @@ test('addTextBox places styled text anywhere', (t) => {
     style: { size: 28, bold: true, color: '1A73E8', align: 'center' },
     fill: 'F1F3F4'
   })
-  t.alike(box, { id: 2, x: 914400, y: 914400, width: 4572000, height: 914400 })
+  t.alike(box, { id: 2, x: 914400, y: 914400, width: 4572000, height: 914400, overlaps: [] })
   const read = reopen(deck).read()[0].shapes[0]
   t.is(read.kind, 'text')
   t.alike(
