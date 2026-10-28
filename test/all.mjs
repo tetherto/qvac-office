@@ -35,6 +35,7 @@ async function runTests() {
   await test.load(import.meta.resolve('./render.ts'))
   await test.load(import.meta.resolve('./safety.ts'))
   await test.load(import.meta.resolve('./templates.ts'))
+  await test.load(import.meta.resolve('./tools-ops.ts'))
   await test.load(import.meta.resolve('./tools.ts'))
   await test.load(import.meta.resolve('./units.ts'))
   await test.load(import.meta.resolve('./xlsx-calc-functions.ts'))

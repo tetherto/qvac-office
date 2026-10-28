@@ -26,7 +26,8 @@ const PARAGRAPH_SPEC: Schema = {
     styleId: s.STRING,
     align: s.ALIGN,
     pageBreak: s.BOOLEAN,
-    level: { type: 'integer', minimum: 0, maximum: 8 }
+    level: { type: 'integer', minimum: 0, maximum: 8 },
+    list: { enum: ['bullet', 'number'] }
   },
   additionalProperties: false
 }
@@ -48,14 +49,46 @@ const CHART = [
   opt('legend', s.LEGEND),
   opt('name', s.STRING)
 ]
+const SEARCH = group(req('find', s.STRING), opt('all', s.BOOLEAN), opt('matchCase', s.BOOLEAN))
 const HEADER = group(opt('type', { enum: ['default', 'first'] }))
 
 export const DOCX: OpTable = {
   read: {
     summary: 'Blocks, headers, footers, footnotes and comments',
+    slots: [
+      group(
+        opt('from', s.INDEX),
+        opt('count', s.POSITIVE),
+        opt('maxChars', s.POSITIVE),
+        opt('detail', { enum: ['runs'] })
+      )
+    ],
+    query: true
+  },
+  outline: {
+    summary: 'Headings with their level and the blocks each spans',
+    slots: [group(opt('depth', { type: 'integer', minimum: 1, maximum: 9 }))],
+    query: true
+  },
+  find: {
+    summary: 'Blocks whose text, style or heading level match',
+    slots: [
+      group(
+        opt('text', s.STRING),
+        opt('regex', s.STRING),
+        opt('style', s.STRING),
+        opt('heading', { anyOf: [s.BOOLEAN, { type: 'integer', minimum: 1, maximum: 9 }] }),
+        opt('matchCase', s.BOOLEAN)
+      )
+    ],
+    query: true
+  },
+  markdown: {
+    summary: 'The body as markdown',
     slots: [group(opt('from', s.INDEX), opt('count', s.POSITIVE))],
     query: true
   },
+  page: { summary: 'Page size, orientation and margins', slots: [], query: true },
   sections: { summary: 'Headings and the blocks each one spans', slots: [], query: true },
   paragraphStyles: { summary: 'Paragraph style names', slots: [], query: true },
   setText: {
@@ -64,7 +97,7 @@ export const DOCX: OpTable = {
   },
   insertParagraphs: {
     summary: 'Insert paragraphs before a block',
-    slots: [req('at', s.INDEX), req('paragraphs', PARAGRAPHS)]
+    slots: [req('at', s.BLOCK), req('paragraphs', PARAGRAPHS)]
   },
   appendParagraphs: {
     summary: 'Append paragraphs at the end',
@@ -101,7 +134,7 @@ export const DOCX: OpTable = {
   addTable: {
     summary: 'Insert a table before a block',
     slots: [
-      req('at', s.INDEX),
+      req('at', s.BLOCK),
       group(req('rows', s.ROWS), opt('header', s.BOOLEAN), opt('style', s.STRING))
     ]
   },
@@ -127,7 +160,7 @@ export const DOCX: OpTable = {
   addImage: {
     summary: 'Insert an image before a block',
     slots: [
-      req('at', s.INDEX),
+      req('at', s.BLOCK),
       { key: 'image', schema: s.IMAGE, required: true, image: true },
       group(
         opt('width', s.LENGTH),
@@ -140,7 +173,7 @@ export const DOCX: OpTable = {
   },
   addChart: {
     summary: 'Insert a chart before a block',
-    slots: [req('at', s.INDEX), group(opt('width', s.LENGTH), opt('height', s.LENGTH), ...CHART)]
+    slots: [req('at', s.BLOCK), group(opt('width', s.LENGTH), opt('height', s.LENGTH), ...CHART)]
   },
   setChartData: {
     summary: "Replace a chart's categories and series",
@@ -150,6 +183,105 @@ export const DOCX: OpTable = {
       group(opt('chart', s.INDEX))
     ]
   },
+  replaceText: {
+    summary: 'Find and replace text across runs, keeping formatting',
+    slots: [
+      group(
+        req('find', s.STRING),
+        req('replace', s.STRING),
+        opt('all', s.BOOLEAN),
+        opt('matchCase', s.BOOLEAN),
+        opt('in', s.BLOCK)
+      )
+    ]
+  },
+  formatText: {
+    summary: 'Format only the matched text in a block',
+    slots: [req('index', s.BLOCK), SEARCH, req('format', FORMAT)]
+  },
+  link: {
+    summary: 'Link the matched text in a block to an http, https or mailto URL',
+    slots: [req('index', s.BLOCK), SEARCH, req('url', s.STRING)]
+  },
+  appendMarkdown: {
+    summary: 'Append markdown: headings, lists, bold, italic, code, links, tables',
+    slots: [req('markdown', s.STRING)]
+  },
+  insertMarkdown: {
+    summary: 'Insert markdown before a block',
+    slots: [req('at', s.BLOCK), req('markdown', s.STRING)]
+  },
+  addComment: {
+    summary: 'Comment on a paragraph, or on the text found in it',
+    slots: [
+      req('index', s.BLOCK),
+      group(
+        req('text', s.STRING),
+        opt('author', s.STRING),
+        opt('initials', s.STRING),
+        opt('find', s.STRING)
+      )
+    ]
+  },
+  deleteComment: {
+    summary: 'Delete a comment',
+    slots: [req('id', { type: ['string', 'integer'] })]
+  },
+  resolveComment: {
+    summary: 'Mark a comment done, or open it again with done false',
+    slots: [req('id', { type: ['string', 'integer'] }), group(opt('done', s.BOOLEAN))]
+  },
+  addFootnote: {
+    summary: 'Add a footnote after the found text, or at the end of the paragraph',
+    slots: [req('index', s.BLOCK), group(req('text', s.STRING), opt('find', s.STRING))]
+  },
+  setPage: {
+    summary: 'Set page size, orientation and margins',
+    slots: [
+      group(
+        opt('size', {
+          anyOf: [
+            { enum: ['letter', 'a4'] },
+            {
+              type: 'object',
+              properties: { width: s.LENGTH, height: s.LENGTH },
+              required: ['width', 'height']
+            }
+          ]
+        }),
+        opt('orientation', { enum: ['portrait', 'landscape'] }),
+        opt('margins', {
+          type: 'object',
+          properties: {
+            top: s.LENGTH,
+            right: s.LENGTH,
+            bottom: s.LENGTH,
+            left: s.LENGTH,
+            header: s.LENGTH,
+            footer: s.LENGTH
+          },
+          additionalProperties: false
+        }),
+        opt('all', s.BOOLEAN)
+      )
+    ]
+  },
+  addTableOfContents: {
+    summary: 'Insert a table of contents that Word refreshes on open',
+    slots: [
+      req('at', s.BLOCK),
+      group(opt('levels', { type: 'integer', minimum: 1, maximum: 9 }), opt('title', s.STRING))
+    ]
+  },
+  acceptChanges: {
+    summary: 'Accept tracked changes in the body or one block',
+    slots: [group(opt('in', s.BLOCK))]
+  },
+  rejectChanges: {
+    summary: 'Reject tracked changes in the body or one block',
+    slots: [group(opt('in', s.BLOCK))]
+  },
+  toDocument: { summary: 'Turn a template (.dotx) into a regular document', slots: [] },
   setChartTitle: {
     summary: "Set a chart's title, or clear it with null",
     slots: [req('index', s.BLOCK), req('title', s.NULLABLE_TEXT), group(opt('chart', s.INDEX))]

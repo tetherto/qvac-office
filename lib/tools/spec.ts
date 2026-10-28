@@ -7,6 +7,7 @@ export interface Param {
   readonly schema: Schema
   readonly required?: boolean
   readonly image?: boolean
+  readonly name?: string
 }
 
 export interface Group {
@@ -36,6 +37,10 @@ export function req(key: string, schema: Schema): Param {
 
 export function opt(key: string, schema: Schema): Param {
   return { key, schema }
+}
+
+export function renamed(param: Param, name: string): Param {
+  return { ...param, name }
 }
 
 export function group(...params: Param[]): Group {
@@ -98,7 +103,9 @@ export function toArguments(spec: OpSpec, operation: Operation, resolve: Resolve
     const present = slot.group.filter((param) => operation[param.key] !== undefined)
 
     return present.length
-      ? Object.fromEntries(present.map((param) => [param.key, value(param, operation, resolve)]))
+      ? Object.fromEntries(
+          present.map((param) => [param.name ?? param.key, value(param, operation, resolve)])
+        )
       : undefined
   })
   while (args.length && args.at(-1) === undefined) {

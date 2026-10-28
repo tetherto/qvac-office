@@ -328,5 +328,10 @@ export const XLSX: OpTable = {
   deleteTable: {
     summary: 'Delete a table, rewriting its structured references as plain ranges',
     slots: [req('name', s.STRING)]
-  }
+  },
+  calculate: {
+    summary: 'Recompute cached formula values now; reads and saves already do this after edits',
+    slots: []
+  },
+  toDocument: { summary: 'Turn a template (.xltx) into a regular workbook', slots: [] }
 }
