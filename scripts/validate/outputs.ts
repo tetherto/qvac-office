@@ -207,7 +207,13 @@ function createdWorkbook(): Uint8Array {
     C2: { date: '2026-01-31' },
     D2: { value: 0.25, format: '0.0%' }
   })
-  book.setCells('Summary', { A1: 'Total', B1: '=Data!B4' })
+  book.setCells('Summary', {
+    A1: 'Total',
+    B1: '=Data!B4',
+    B2: '=IF(Data!B4>100,"high","low")',
+    B3: '=VLOOKUP("Feb",Data!A2:B3,2,FALSE)',
+    B4: '=Data!B2>Data!B3'
+  })
   book.setColumnWidth('Data', { column: 'A', width: 14 })
   book.addImage('Summary', png, { cell: 'D2' })
   book.addChart('Data', {

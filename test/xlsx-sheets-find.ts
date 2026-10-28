@@ -35,7 +35,7 @@ test('find searches values, optionally formulas, case and regex aware', (t) => {
   t.alike(wb.find('north', { sheet: 'Notes' }).length, 1)
   t.alike(wb.find('^S', { regex: true }), [{ sheet: 'Data', ref: 'A3', value: 'South' }])
   t.alike(wb.find('B3', { formulas: true }), [
-    { sheet: 'Data', ref: 'C3', value: null, formula: '=B3*2' }
+    { sheet: 'Data', ref: 'C3', value: 10, formula: '=B3*2' }
   ])
   t.alike(wb.find('true'), [{ sheet: 'Notes', ref: 'B4', value: true }])
   t.is(wb.find('o', { limit: 2 }).length, 2)

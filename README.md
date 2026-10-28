@@ -176,6 +176,18 @@ A sheet is its name or 0-based index; cells use A1 references and rows are numbe
 - `addSheet(name, { at })`, `renameSheet(sheet, name)`, `deleteSheet(sheet)`
 - `addImage(sheet, image, opts)`, `addChart(sheet, spec)`, `removeMacros()`
 - `xlsx.create({ sheets, title })`
+- `calculate()` — evaluates every formula it supports in dependency order and writes the cached
+  values, returning `{ computed, skipped, cycles, updated }`. Arithmetic, comparisons, `&`,
+  references across sheets, defined names and `SUM`, `AVERAGE`, `MIN`, `MAX`, `COUNT`, `COUNTA`,
+  `COUNTBLANK`, `IF`, `IFERROR`, `IFNA`, `AND`, `OR`, `NOT`, `ROUND`, `ROUNDUP`, `ROUNDDOWN`,
+  `ABS`, `INT`, `MOD`, `POWER`, `SQRT`, `CONCAT`, `CONCATENATE`, `TEXTJOIN`, `LEN`, `LEFT`,
+  `RIGHT`, `MID`, `UPPER`, `LOWER`, `TRIM`, `SUMIF`, `COUNTIF`, `AVERAGEIF`, `VLOOKUP`, `HLOOKUP`,
+  `INDEX` and `MATCH` are supported. Volatile functions (`TODAY`, `NOW`), other functions, array
+  and spilling formulas, tables and 3D references are skipped and keep their cached value, as do
+  formulas that depend on them; cycles are listed and left uncomputed. `read`, `get` and `save`
+  recalculate on their own after an edit; open with `xlsx.open(bytes, { calculate: false })` or
+  set `workbook.autoCalculate = false` to opt out. Excel still recalculates on load
+  (`fullCalcOnLoad`).
 
 ## Tools
 

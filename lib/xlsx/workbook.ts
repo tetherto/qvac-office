@@ -9,7 +9,6 @@ import {
   SHEET_ORDER,
   type CellValue,
   type CellRead,
-  type EditState,
   type SheetEntry,
   type SheetRead,
   type ReadOptions
@@ -30,6 +29,7 @@ import type { Change } from './formula.ts'
 import type { ChartInfo, ChartType, Legend, Stacking } from '../drawingml/chart.ts'
 import type { SaveOptions } from '../opc/properties.ts'
 import type { ReshapeHost } from './reshape.ts'
+import { calculate, CalcState, type CalcHost, type Calculated } from './calculate.ts'
 import * as units from '../units.ts'
 import * as columns from './columns.ts'
 import * as merging from './merge.ts'
@@ -62,6 +62,11 @@ import type { FindOptions, Found } from './search.ts'
 import type { SheetOutline } from './outline.ts'
 
 export type SheetRef = string | number
+export type { Calculated }
+
+export interface WorkbookOpenOptions extends OpenOptions {
+  calculate?: boolean
+}
 export type { CellValue, CellRead, SheetRead, ReadOptions, CellStyle, CreateOptions }
 
 export interface CellOptions extends CellStyle {
@@ -466,10 +471,12 @@ export class Workbook {
   main: string
   strings: SharedStrings
   styles: Styles
-  state: EditState
+  state: CalcState
+  autoCalculate: boolean
   private sheetsChanged: boolean
+  private recalcWanted: boolean
 
-  constructor(pkg: Package) {
+  constructor(pkg: Package, opts: WorkbookOpenOptions = {}) {
     this.package = pkg
     const main = pkg.related('/', REL.officeDocument)[0]
     if (!main || !MAIN_TYPES.has(pkg.contentType(main) ?? '')) {
@@ -494,12 +501,14 @@ export class Workbook {
 
     this.strings = new SharedStrings(pkg, main)
     this.styles = new Styles(pkg, main)
-    this.state = { touched: new Set(), formulas: false, cellsChanged: false }
+    this.state = new CalcState()
+    this.autoCalculate = opts.calculate !== false
     this.sheetsChanged = false
+    this.recalcWanted = false
   }
 
-  static open(bytes: Uint8Array | ArrayBuffer, opts?: OpenOptions): Workbook {
-    return new Workbook(Package.open(bytes, opts))
+  static open(bytes: Uint8Array | ArrayBuffer, opts?: WorkbookOpenOptions): Workbook {
+    return new Workbook(Package.open(bytes, opts), opts)
   }
 
   static create(opts: CreateOptions = {}): Workbook {
@@ -539,6 +548,7 @@ export class Workbook {
   }
 
   read(sheet: SheetRef, opts?: ReadOptions): WorkbookRead {
+    this.refresh()
     const target = this.sheet(sheet)
     const out: WorkbookRead = target.read(isRecord(opts) ? opts : {})
     const charts = this.charts(target)
@@ -550,6 +560,7 @@ export class Workbook {
   }
 
   get(sheet: SheetRef, ref: string): CellRead {
+    this.refresh()
     return this.sheet(sheet).get(ref)
   }
 
@@ -939,11 +950,17 @@ export class Workbook {
   }
 
   defineName(name: string, ref: string, opts: NameOptions = {}): NameDefined {
-    return names.define(this.host(), { name, ref, opts })
+    const result = names.define(this.host(), { name, ref, opts })
+    this.state.stale = true
+
+    return result
   }
 
   deleteName(name: string, opts: NameOptions = {}): NameDeleted {
-    return names.remove(this.host(), name, opts)
+    const result = names.remove(this.host(), name, opts)
+    this.state.stale = result.deleted > 0 || this.state.stale
+
+    return result
   }
 
   tables(sheet?: SheetRef): TableInfo[] {
@@ -974,7 +991,17 @@ export class Workbook {
     return templates.toDocument(this.package, this.main)
   }
 
+  calculate(): Calculated {
+    const report = calculate(this.calcHost())
+    const unresolved = report.skipped > 0 || report.cycles.length > 0
+    this.recalcWanted ||= report.updated > 0 || (this.state.cellsChanged && unresolved)
+    this.state.stale = false
+
+    return report
+  }
+
   save(opts?: SaveOptions): Uint8Array {
+    this.refresh()
     for (const sheet of this.state.touched) {
       if (this.package.has(sheet.part)) {
         sheet.updateDimension()
@@ -985,7 +1012,7 @@ export class Workbook {
       this.dropCalcChain()
     }
 
-    if (this.state.formulas) {
+    if (this.state.formulas || this.recalcWanted) {
       this.requestRecalc()
     }
 
@@ -998,8 +1025,32 @@ export class Workbook {
     this.state.touched.clear()
     this.state.cellsChanged = false
     this.state.formulas = false
+    this.state.stale = false
+    this.recalcWanted = false
 
     return this.package.save()
+  }
+
+  private refresh(): void {
+    if (this.autoCalculate && this.state.stale) {
+      this.calculate()
+    }
+  }
+
+  private calcHost(): CalcHost {
+    return {
+      strings: this.strings,
+      worksheets: () =>
+        this.entries()
+          .filter((entry) => entry.kind === 'worksheet')
+          .map((entry) => new Sheet(this, entry)),
+      names: () =>
+        this.definedNames().map((dn) => {
+          const local = dn.getAttribute('localSheetId')
+          const scope = local === null || local === '' ? null : Number(local)
+          return { name: xml.attr(dn, 'name'), scope, text: xml.text(dn) }
+        })
+    }
   }
 
   private host(): ReshapeHost {

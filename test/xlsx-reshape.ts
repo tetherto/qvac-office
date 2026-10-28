@@ -92,7 +92,7 @@ test('dropping a row inside a SUM shrinks it and moves every reference', (t) => 
     ['Item', 'Cost'],
     ['Rent', 1200],
     ['Food', 450.5],
-    ['Total', null]
+    ['Total', 1650.5]
   ])
   t.alike(read.formulas, { B4: '=SUM(B2:B3)' })
   t.alike(again.read('Summary').formulas, { B1: '=Budget!B4', C1: '=Budget!#REF!' })

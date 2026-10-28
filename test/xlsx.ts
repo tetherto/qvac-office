@@ -86,7 +86,7 @@ test('setCells writes numbers, text, booleans, formulas and dates', (t) => {
   t.alike(read.rows[1].slice(0, 3), ['Rent', 1250, true])
   t.alike(read.rows[4].slice(0, 2), ['Travel', 300])
   t.is(read.formulas.B4, '=SUM(B2:B3,B5)')
-  t.is(read.rows[3][1], null)
+  t.is(read.rows[3][1], 2000.5)
 
   const workbook = partXml(again, 'xl/workbook.xml')
   t.ok(workbook.includes('fullCalcOnLoad="1"'))

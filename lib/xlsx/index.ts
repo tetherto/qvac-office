@@ -1,6 +1,6 @@
 import { Workbook } from './workbook.ts'
-import type { OpenOptions } from '../opc/package.ts'
 import type { CreateOptions } from './template.ts'
+import type { WorkbookOpenOptions } from './workbook.ts'
 
 export { Workbook }
 export type {
@@ -31,7 +31,9 @@ export type {
   AddSheetOptions,
   ImageOptions,
   SeriesRange,
-  SheetChartSpec
+  SheetChartSpec,
+  Calculated,
+  WorkbookOpenOptions
 } from './workbook.ts'
 export type { CellStyle, CellAlign } from './styles.ts'
 export type { ColumnSpan } from './columns.ts'
@@ -75,7 +77,7 @@ export type { FindOptions, Found } from './search.ts'
 export type { HeaderGuess, SheetOutline } from './outline.ts'
 export type { DocumentConversion } from '../opc/templates.ts'
 
-export function open(bytes: Uint8Array | ArrayBuffer, opts?: OpenOptions): Workbook {
+export function open(bytes: Uint8Array | ArrayBuffer, opts?: WorkbookOpenOptions): Workbook {
   return Workbook.open(bytes, opts)
 }
 

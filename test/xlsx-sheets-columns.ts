@@ -32,7 +32,7 @@ test('insertColumns moves cells and every reference to them', (t) => {
   t.alike(book.insertColumns('Data', { column: 'C', count: 2 }), { from: 'C', to: 'D' })
   const again = reopen(book)
   const read = again.read('Data')
-  t.alike(read.rows[0], ['Item', 'Q1', null, null, 'Q2', 'Total', null])
+  t.alike(read.rows[0], ['Item', 'Q1', null, null, 'Q2', 'Total', 'Q2'])
   t.alike(read.formulas, { F2: '=SUM(B2:E2)', F3: '=SUM(B3:E3)', G1: '=E1' })
   t.alike(again.read('Summary').formulas, {
     A1: '=Data!F2',
