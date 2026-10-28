@@ -26,12 +26,69 @@ export const PPTX: OpTable = {
       group(
         opt('from', s.INDEX),
         opt('count', s.POSITIVE),
-        opt('slides', { type: 'array', items: s.INDEX })
+        opt('slides', { type: 'array', items: s.SLIDE }),
+        opt('detail', { enum: ['runs'] })
       )
     ],
     query: true
   },
   layouts: { summary: 'The layouts a new slide can use', slots: [], query: true },
+  outline: {
+    summary: 'Each slide in a line: id, layout, title and what it holds',
+    slots: [],
+    query: true
+  },
+  readPage: {
+    summary: 'Slides within a character budget, with next to continue from',
+    slots: [
+      group(opt('from', s.SLIDE), opt('maxChars', s.POSITIVE), opt('detail', { enum: ['runs'] }))
+    ],
+    query: true
+  },
+  find: {
+    summary: 'Shapes whose text, name, kind or placeholder match',
+    slots: [
+      group(
+        opt('text', s.STRING),
+        opt('placeholder', s.STRING),
+        opt('kind', s.STRING),
+        opt('name', s.STRING),
+        opt('regex', s.BOOLEAN),
+        opt('matchCase', s.BOOLEAN)
+      )
+    ],
+    query: true
+  },
+  replaceText: {
+    summary: 'Find and replace text across runs, keeping formatting',
+    slots: [
+      group(
+        req('find', s.STRING),
+        req('replace', s.STRING),
+        opt('all', s.BOOLEAN),
+        opt('matchCase', s.BOOLEAN),
+        opt('slide', s.SLIDE),
+        opt('shape', s.SHAPE),
+        opt('notes', s.BOOLEAN)
+      )
+    ]
+  },
+  formatText: {
+    summary: 'Style only the matched text in a shape',
+    slots: [
+      TARGET,
+      group(req('find', s.STRING), opt('all', s.BOOLEAN), opt('matchCase', s.BOOLEAN)),
+      req('style', s.STYLE)
+    ]
+  },
+  link: {
+    summary: 'Link the matched text in a shape to an http, https or mailto URL',
+    slots: [
+      TARGET,
+      group(req('find', s.STRING), opt('all', s.BOOLEAN), opt('matchCase', s.BOOLEAN)),
+      req('url', s.STRING)
+    ]
+  },
   setText: {
     summary: "Replace a shape's text, keeping run and paragraph formatting",
     slots: [TARGET, req('text', s.TEXT), group(opt('fit', { enum: ['shrink'] }))]
