@@ -27,6 +27,12 @@ async function runTests() {
   await test.load(import.meta.resolve('./xlsx-charts.ts'))
   await test.load(import.meta.resolve('./xlsx-formula.ts'))
   await test.load(import.meta.resolve('./xlsx-reshape.ts'))
+  await test.load(import.meta.resolve('./xlsx-sheets-columns.ts'))
+  await test.load(import.meta.resolve('./xlsx-sheets-find.ts'))
+  await test.load(import.meta.resolve('./xlsx-sheets-layout.ts'))
+  await test.load(import.meta.resolve('./xlsx-sheets-rules.ts'))
+  await test.load(import.meta.resolve('./xlsx-sheets-sort.ts'))
+  await test.load(import.meta.resolve('./xlsx-sheets-tables.ts'))
   await test.load(import.meta.resolve('./xlsx.ts'))
 
   test.resume()

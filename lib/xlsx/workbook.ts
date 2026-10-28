@@ -29,6 +29,35 @@ import type { ChartInfo, ChartType, Legend, Stacking } from '../drawingml/chart.
 import type { SaveOptions } from '../opc/properties.ts'
 import type { ReshapeHost } from './reshape.ts'
 import * as units from '../units.ts'
+import * as columns from './columns.ts'
+import * as merging from './merge.ts'
+import * as layout from './layout.ts'
+import * as filtering from './filter.ts'
+import * as sorting from './sort.ts'
+import * as conditional from './conditional.ts'
+import * as validation from './validation.ts'
+import * as names from './names.ts'
+import * as tables from './tables.ts'
+import * as search from './search.ts'
+import * as outlines from './outline.ts'
+import type { ColumnSpan } from './columns.ts'
+import type { Merged, Unmerged } from './merge.ts'
+import type {
+  RowHeightOptions,
+  RowHeight,
+  HideOptions,
+  Hidden,
+  FreezeOptions,
+  Frozen
+} from './layout.ts'
+import type { AutoFilter } from './filter.ts'
+import type { SortOptions, Sorted } from './sort.ts'
+import type { ConditionalRule, ConditionalAdded, ConditionalDeleted } from './conditional.ts'
+import type { ValidationRule, ValidationAdded, ValidationDeleted } from './validation.ts'
+import type { DefinedName, NameOptions, NameDefined, NameDeleted } from './names.ts'
+import type { TableInfo, TableOptions, AddedTable, DeletedTable } from './tables.ts'
+import type { FindOptions, Found } from './search.ts'
+import type { SheetOutline } from './outline.ts'
 
 export type SheetRef = string | number
 export type { CellValue, CellRead, SheetRead, ReadOptions, CellStyle, CreateOptions }
@@ -56,6 +85,12 @@ export interface DeleteRowsOptions {
 export interface DeleteColumnsOptions {
   column: string | number
   count?: number
+}
+
+export interface InsertColumnsOptions {
+  column: string | number
+  count?: number
+  values?: CellInput[][]
 }
 
 export interface ColumnWidthOptions {
@@ -828,6 +863,100 @@ export class Workbook {
     }
 
     return { changed: true }
+  }
+
+  insertColumns(sheet: SheetRef, opts: InsertColumnsOptions): ColumnSpan {
+    const target = this.sheet(sheet)
+    const step = columns.plan(target, opts)
+    const change: Change = {
+      sheet: target.name,
+      axis: 'col',
+      at: step.col,
+      count: step.count,
+      kind: 'insert'
+    }
+    this.reshapeWith(target, { change, action: 'insert columns' }, () =>
+      columns.shift(target, step)
+    )
+    columns.fill(target, step)
+
+    return columns.span(step)
+  }
+
+  merge(sheet: SheetRef, range: string): Merged {
+    return merging.merge(this.sheet(sheet), range)
+  }
+
+  unmerge(sheet: SheetRef, range: string): Unmerged {
+    return merging.unmerge(this.sheet(sheet), range)
+  }
+
+  setRowHeight(sheet: SheetRef, opts: RowHeightOptions): RowHeight {
+    return layout.setRowHeight(this.sheet(sheet), opts)
+  }
+
+  hide(sheet: SheetRef, opts: HideOptions): Hidden {
+    return layout.hide(this.sheet(sheet), opts)
+  }
+
+  freeze(sheet: SheetRef, opts: FreezeOptions): Frozen {
+    return layout.freeze(this.sheet(sheet), opts)
+  }
+
+  autofilter(sheet: SheetRef, range: string | null): AutoFilter {
+    return filtering.autofilter(this.host(), this.sheet(sheet), range)
+  }
+
+  sort(sheet: SheetRef, opts: SortOptions): Sorted {
+    return sorting.sort(this.sheet(sheet), opts)
+  }
+
+  addConditionalFormat(sheet: SheetRef, range: string, rule: ConditionalRule): ConditionalAdded {
+    return conditional.add(this.sheet(sheet), range, rule)
+  }
+
+  deleteConditionalFormats(sheet: SheetRef, range?: string): ConditionalDeleted {
+    return conditional.remove(this.sheet(sheet), range)
+  }
+
+  addValidation(sheet: SheetRef, range: string, rule: ValidationRule): ValidationAdded {
+    return validation.add(this.sheet(sheet), range, rule)
+  }
+
+  deleteValidations(sheet: SheetRef, range?: string): ValidationDeleted {
+    return validation.remove(this.sheet(sheet), range)
+  }
+
+  names(): DefinedName[] {
+    return names.list(this.host())
+  }
+
+  defineName(name: string, ref: string, opts: NameOptions = {}): NameDefined {
+    return names.define(this.host(), { name, ref, opts })
+  }
+
+  deleteName(name: string, opts: NameOptions = {}): NameDeleted {
+    return names.remove(this.host(), name, opts)
+  }
+
+  tables(sheet?: SheetRef): TableInfo[] {
+    return tables.list(this.host(), sheet === undefined ? null : this.sheet(sheet))
+  }
+
+  addTable(sheet: SheetRef, range: string, opts?: TableOptions): AddedTable {
+    return tables.add(this.host(), this.sheet(sheet), { range, opts })
+  }
+
+  deleteTable(name: string): DeletedTable {
+    return tables.remove(this.host(), name)
+  }
+
+  find(query: string, opts: FindOptions = {}): Found[] {
+    return search.find({ host: this.host(), sheet: (ref) => this.sheet(ref) }, query, opts)
+  }
+
+  outline(): SheetOutline[] {
+    return outlines.outline(this.host())
   }
 
   save(opts?: SaveOptions): Uint8Array {

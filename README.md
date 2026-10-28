@@ -102,7 +102,26 @@ A sheet is its name or 0-based index; cells use A1 references and rows are numbe
   `deleteColumns(sheet, { column, count })` — move every reference the way Excel does; pivot
   tables, comments, data tables, straddled array formulas and table header, totals or column
   deletes are refused
-- `setColumnWidth(sheet, { column, width })`
+- `insertColumns(sheet, { column, count | values })` — `values` is one array per new column,
+  from row 1 down; moves references and refuses the same things `deleteColumns` does
+- `setColumnWidth(sheet, { column, width })`, `setRowHeight(sheet, { row, height })` (points, or
+  a length like `"0.5in"`), `hide(sheet, { rows, columns, hidden })` with a number, letter or
+  `[from, to]`
+- `merge(sheet, range)` keeps the top-left value and reports the cells it cleared;
+  `unmerge(sheet, range)` drops every merge the range touches
+- `freeze(sheet, { rows, columns })`; `{ rows: 0, columns: 0 }` unfreezes
+- `autofilter(sheet, range | null)`, `sort(sheet, { range, by: [{ column, descending }], header })`
+  — sort refuses formulas that refer inside the range, merged cells and ranges straddling a table
+- `addConditionalFormat(sheet, range, rule)` with `cellIs`, `colorScale`, `dataBar` or `text`
+  rules, `deleteConditionalFormats(sheet, range?)`
+- `addValidation(sheet, range, { type, values | min | max, operator, allowBlank, prompt, error })`
+  for `list`, `whole`, `decimal`, `date` and `textLength`, `deleteValidations(sheet, range?)`
+- `names()`, `defineName(name, ref, { sheet })`, `deleteName(name, { sheet })` — names follow
+  Excel's rules and share one namespace with tables
+- `tables(sheet?)`, `addTable(sheet, range, { name, header, style, totals })`,
+  `deleteTable(name)`, which turns structured references to the table into plain ranges
+- `find(query, { sheet, regex, matchCase, formulas, limit })` and `outline()`, a short summary of
+  every sheet: used range, header row guess, size, charts and tables
 - `addSheet(name, { at })`, `renameSheet(sheet, name)`, `deleteSheet(sheet)`
 - `addImage(sheet, image, opts)`, `addChart(sheet, spec)`, `removeMacros()`
 - `xlsx.create({ sheets, title })`

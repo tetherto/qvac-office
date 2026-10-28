@@ -62,7 +62,17 @@ export const CODES = {
   UNKNOWN_OPERATION: 'the format has no operation with that name',
   RENDER_UNAVAILABLE: 'rendering needs Bare with bare-x-to-pdf, bare-pdfium and bare-png',
   TEXT_NOT_FOUND: 'no text in the target matches the search',
-  INVALID_LINK: 'a hyperlink is not an http, https or mailto URL'
+  INVALID_LINK: 'a hyperlink is not an http, https or mailto URL',
+  MERGE_OVERLAP: 'the range overlaps a merged range that is already there',
+  RANGE_HAS_MERGES: 'the range overlaps merged cells, which the edit cannot move through',
+  TABLE_OVERLAP: 'the range overlaps or straddles a table or the sheet autofilter',
+  SORT_HAS_FORMULAS:
+    'the sort range holds formulas that refer inside it, or shared or array formulas',
+  VALIDATION_OVERLAP: 'the range already has a data validation rule',
+  INVALID_DEFINED_NAME: 'the defined name or table name breaks Excel naming rules or is taken',
+  NAME_NOT_FOUND: 'no defined name with that name in that scope',
+  TABLE_NOT_FOUND: 'no table with that name in the workbook',
+  TABLE_IS_REFERENCED: 'formulas use the table in a form that cannot become a plain range'
 } as const
 
 export type DocsErrorCode = keyof typeof CODES

@@ -180,6 +180,46 @@ function createdWorkbook(): Uint8Array {
   return book.save()
 }
 
+function sheetFeatures(): Uint8Array {
+  const book = xlsx.create({ sheets: ['Data', 'Lists'] })
+  book.appendRows('Data', [
+    ['Region', 'Units', 'Price'],
+    ['North', 3, 2.5],
+    ['South', 5, 1.5],
+    ['East', 2, 4]
+  ])
+  book.insertColumns('Data', { column: 'C', values: [['Status', 'open', 'done', 'open']] })
+  book.setCells('Data', { F1: 'Note', F5: '=SUM(B2:B4)' })
+  book.merge('Data', 'F2:G3')
+  book.setRowHeight('Data', { row: 1, height: 24 })
+  book.hide('Data', { rows: 6, columns: 'H' })
+  book.freeze('Data', { rows: 1, columns: 1 })
+  book.sort('Data', { range: 'A1:D4', header: true, by: [{ column: 'B', descending: true }] })
+  book.addTable('Data', 'A1:D4', { name: 'Sales', totals: true })
+  book.addConditionalFormat('Data', 'B2:B4', {
+    kind: 'cellIs',
+    operator: 'greaterThan',
+    value: 2,
+    style: { fill: 'FFC7CE', color: '9C0006' }
+  })
+  book.addConditionalFormat('Data', 'D2:D4', { kind: 'colorScale', colors: ['F8696B', '63BE7B'] })
+  book.addConditionalFormat('Data', 'B2:B4', { kind: 'dataBar', color: '638EC6' })
+  book.addConditionalFormat('Data', 'C2:C4', {
+    kind: 'text',
+    contains: 'open',
+    style: { bold: true }
+  })
+  book.addValidation('Data', 'C2:C4', { type: 'list', values: ['open', 'done'], prompt: 'Pick' })
+  book.addValidation('Data', 'B2:B4', { type: 'whole', min: 0, max: 100, error: 'Whole units' })
+  book.addValidation('Data', 'J2:J9', { type: 'date', min: '2026-01-01' })
+  book.setCells('Lists', { A1: 'x', A2: 'y', B1: 'z' })
+  book.autofilter('Lists', 'A1:B2')
+  book.defineName('TaxRate', '=0.2')
+  book.defineName('Picks', 'A1:A2', { sheet: 'Lists' })
+
+  return book.save()
+}
+
 function editedSales(bytes: Uint8Array): Uint8Array {
   const w = xlsx.open(bytes)
   w.setCells('Sales', { B3: 125, F4: { value: 0.3, format: '0.0%' }, G4: { date: '2026-06-30' } })
@@ -202,6 +242,7 @@ fs.mkdirSync(out, { recursive: true })
 write('created.pptx', createdDeck())
 write('created.docx', createdDocument())
 write('created.xlsx', createdWorkbook())
+write('sheet-features.xlsx', sheetFeatures())
 pair('edited-basic.pptx', fixture('basic.pptx'), editedDeck)
 pair('edited-charts.pptx', fixture('charts.pptx'), editedCharts)
 pair('edited-report.docx', fixture('report.docx'), editedReport)
