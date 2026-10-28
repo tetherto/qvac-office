@@ -454,6 +454,11 @@ interface SeriesName {
   nameRef: string | null
 }
 
+const RESHAPE_FALLBACKS: Readonly<Record<string, string>> = {
+  'insert rows': 'append the rows at the end instead',
+  'insert columns': 'write the cells to the right of the used range instead'
+}
+
 export class Workbook {
   package: Package
   main: string
@@ -1004,13 +1009,11 @@ export class Workbook {
     const host = this.host()
     const reasons = reshape.blockers(host, target, step.change)
     if (reasons.length) {
-      const fallback =
-        step.action === 'insert rows'
-          ? 'append the rows at the end instead'
-          : 'clear the cells instead'
+      const fallback = RESHAPE_FALLBACKS[step.action] ?? 'clear the cells instead'
       throw new DocsError(
         'SHEET_HAS_DEPENDENTS',
-        `cannot ${step.action} on "${target.name}": it has ${reasons.join(', ')}, which cannot be moved yet; ${fallback}`
+        `cannot ${step.action} on "${target.name}": it has ${reasons.join(', ')}, which cannot be moved yet; ${fallback}`,
+        { sheet: target.name, action: step.action, blockers: reasons }
       )
     }
 
