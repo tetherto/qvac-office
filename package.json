@@ -1,0 +1,90 @@
+{
+  "name": "@qvac/office",
+  "version": "0.1.0",
+  "description": "Read, edit and create .pptx, .docx and .xlsx files in pure JavaScript, on Bare and Node",
+  "type": "module",
+  "exports": {
+    "./package": "./package.json",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./pptx": {
+      "types": "./dist/pptx/index.d.ts",
+      "default": "./dist/pptx/index.js"
+    },
+    "./docx": {
+      "types": "./dist/docx/index.d.ts",
+      "default": "./dist/docx/index.js"
+    },
+    "./xlsx": {
+      "types": "./dist/xlsx/index.d.ts",
+      "default": "./dist/xlsx/index.js"
+    }
+  },
+  "imports": {
+    "fs": {
+      "bare": "bare-fs",
+      "default": "fs"
+    },
+    "path": {
+      "bare": "bare-path",
+      "default": "path"
+    },
+    "process": {
+      "bare": "bare-process",
+      "default": "process"
+    },
+    "#zlib": {
+      "types": "bare-zlib",
+      "bare": "bare-zlib",
+      "default": "zlib"
+    }
+  },
+  "files": [
+    "package.json",
+    "dist",
+    "NOTICE.md"
+  ],
+  "engines": {
+    "bare": ">=1.34.0",
+    "node": "^22.21.0 || >=24.9.0"
+  },
+  "dependencies": {
+    "@xmldom/xmldom": "^0.9.12",
+    "bare-zlib": "^1.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.6",
+    "b4a": "^1.7.3",
+    "bare-fs": "^4.5.0",
+    "bare-path": "^3.0.0",
+    "bare-process": "^4.2.0",
+    "brittle": "^4.2.0",
+    "lunte": "^1.8.6",
+    "lunte-plugin-qvac": "^0.2.0",
+    "prettier": "^3.9.6",
+    "prettier-config-holepunch": "^2.0.0",
+    "typescript": "^7.0.2"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "prepack": "npm run build",
+    "format": "prettier . --write",
+    "test": "npm run test:node && npm run test:bare",
+    "test:node": "brittle-node test/all.mjs",
+    "test:bare": "brittle-bare test/all.mjs",
+    "test:generate": "brittle-make-test test/all.mjs test/*.ts",
+    "lint": "prettier . --check && lunte && tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tetherto/qvac-office.git"
+  },
+  "author": "Tether Inc",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/tetherto/qvac-office/issues"
+  },
+  "homepage": "https://github.com/tetherto/qvac-office"
+}

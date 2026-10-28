@@ -1,0 +1,202 @@
+import fs from 'fs'
+import path from 'path'
+import process from 'process'
+import { pptx, docx, xlsx, units } from '../../lib/index.ts'
+import { edits, expected, readCorpus, type Format } from '../../test/helpers/corpus.ts'
+
+type Edit = (bytes: Uint8Array) => Uint8Array
+
+const FIXTURES = new URL('../../test/fixtures/engine/', import.meta.url)
+const out = process.argv[2] ?? 'validate-out'
+const png = fixture('red.png')
+const chart = {
+  categories: ['North', 'South', 'East'],
+  series: [
+    { name: 'Units', values: [3, 5, 2] },
+    { name: 'Returns', values: [1, 0, 1] }
+  ]
+}
+
+function fixture(name: string): Uint8Array {
+  return new Uint8Array(fs.readFileSync(new URL(name, FIXTURES)))
+}
+
+function write(name: string, bytes: Uint8Array): void {
+  fs.writeFileSync(path.join(out, name), bytes)
+}
+
+function pair(name: string, input: Uint8Array, edit: Edit): void {
+  write(name.replace(/(\.\w+)$/, '.orig$1'), input)
+  write(name, edit(input))
+}
+
+function createdDeck(): Uint8Array {
+  const deck = pptx.create({ title: 'Validation', colors: { accent1: '1A73E8' } })
+  deck.addSlide({ layout: 'Title Slide', title: 'Cover', body: 'Subtitle' })
+  deck.addSlide({ title: 'Bullets', body: ['One', { text: 'Two', level: 1 }] })
+  deck.addSlide({ layout: 'Section Header', title: 'Section', body: 'Intro' })
+  const two = deck.addSlide({ layout: 'Two Content', title: 'Compare' })
+  const left = two.shapes[1]?.id
+  if (left !== undefined && left !== null) {
+    deck.setText({ slide: two.index, shape: left }, 'Left')
+  }
+
+  for (const type of ['column', 'bar', 'line', 'pie', 'doughnut', 'area'] as const) {
+    const slide = deck.addSlide({ layout: 'Title Only', title: type })
+    deck.addChart(slide.index, {
+      type,
+      title: type,
+      stacked: type === 'column' ? 'percent' : false,
+      ...chart
+    })
+  }
+
+  const table = deck.addSlide({ layout: 'Title Only', title: 'Table' })
+  deck.addTable(table.index, {
+    rows: [
+      ['A', 'B'],
+      ['1', 2]
+    ],
+    height: units.inches(1)
+  })
+  const blank = deck.addSlide({ layout: 'Blank' })
+  deck.setBackground(blank.index, '101820')
+  deck.addTextBox(blank.index, {
+    text: 'Thanks',
+    fill: 'F1F3F4',
+    style: { size: 40, bold: true, align: 'center' }
+  })
+  deck.addPicture(blank.index, png, { width: units.inches(1) })
+  deck.setNotes(1, 'Speaker notes')
+  const lines = Array.from({ length: 20 }, (_, i) => `Line ${i}`)
+  deck.setText({ slide: 1, shape: 'body' }, lines, { fit: 'shrink' })
+
+  return deck.save({ modified: new Date('2026-01-01T00:00:00Z') })
+}
+
+function editedDeck(bytes: Uint8Array): Uint8Array {
+  const d = pptx.open(bytes)
+  d.setText({ slide: 0, shape: 'title' }, 'Edited')
+  d.format({ slide: 0, shape: 'title' }, { color: 'C0392B', font: 'Georgia' })
+  d.setCellText({ slide: 2, shape: 4, row: 1, column: 1 }, 'x')
+  d.addSlide({ title: 'Added', body: 'Body', at: 1 })
+  d.moveSlide(3, { to: 0 })
+  d.deleteShape({ slide: 0, shape: 6 })
+  d.setBox({ slide: 1, shape: 'title' }, { y: units.inches(0.3) })
+  d.replacePicture({ slide: 0, shape: 3 }, png)
+  d.setNotes(2, 'Notes')
+  d.deleteSlide(2)
+  return d.save()
+}
+
+function editedCharts(bytes: Uint8Array): Uint8Array {
+  const d = pptx.open(bytes)
+  const series = [1, 2, 3].map((n) => ({ name: `S${n}`, values: [n, n + 1, n + 2, n + 3] }))
+  d.setChartData({ slide: 0, shape: 3 }, { categories: ['Q1', 'Q2', 'Q3', 'Q4'], series })
+  d.setChartTitle({ slide: 0, shape: 3 }, 'Retitled')
+  d.setChartTitle({ slide: 1, shape: 2 }, 'Added title')
+  return d.save()
+}
+
+function createdDocument(): Uint8Array {
+  const doc = docx.create({ title: 'Validation', page: 'a4' })
+  doc.appendParagraphs([
+    { text: 'Title', style: 'Title' },
+    { text: 'Heading', style: 'Heading 1' },
+    { text: 'Bullet', style: 'List Bullet' },
+    { text: 'Nested', style: 'List Bullet', level: 1 },
+    { text: 'Number', style: 'List Number' },
+    { runs: ['Plain ', { text: 'bold', bold: true, color: 'C0392B' }, '\ttab'] },
+    { pageBreak: true }
+  ])
+  doc.addTable(doc.blockCount, {
+    rows: [
+      ['A', 'B'],
+      ['1', 2]
+    ]
+  })
+  doc.addImage(doc.blockCount, png, { align: 'center' })
+  doc.addChart(doc.blockCount, { type: 'bar', title: 'Chart', ...chart })
+  doc.setHeader('Header')
+  doc.setFooter('Footer')
+  doc.setHeader('First', { type: 'first' })
+  doc.formatStyle('Normal', { size: 12, font: 'Georgia' })
+
+  return doc.save()
+}
+
+function editedReport(bytes: Uint8Array): Uint8Array {
+  const d = docx.open(bytes)
+  d.setText(3, { runs: ['Revenue ', { text: 'grew', italic: true }] })
+  d.insertParagraphs(6, [{ text: 'East', style: 'List Bullet', level: 1 }])
+  d.replaceSection(7, { title: 'Areas', body: ['All reported.'] })
+  d.setCell({ table: 11, row: 1, column: 2 }, '38%')
+  d.addRow(11, ['Headcount', 1, 2])
+  d.formatParagraph(1, { align: 'center', size: 14 })
+  d.addImage(0, png)
+  d.setFooter('Footer')
+  return d.save()
+}
+
+function createdWorkbook(): Uint8Array {
+  const book = xlsx.create({ sheets: ['Data', 'Summary'] })
+  book.appendRows('Data', [
+    ['Month', 'Spend'],
+    ['Jan', 120],
+    ['Feb', 80.5]
+  ])
+  book.format('Data', 'A1:B1', { bold: true, fill: 'FFF2CC' })
+  book.setCells('Data', {
+    B4: '=SUM(B2:B3)',
+    C2: { date: '2026-01-31' },
+    D2: { value: 0.25, format: '0.0%' }
+  })
+  book.setCells('Summary', { A1: 'Total', B1: '=Data!B4' })
+  book.setColumnWidth('Data', { column: 'A', width: 14 })
+  book.addImage('Summary', png, { cell: 'D2' })
+  book.addChart('Data', {
+    type: 'column',
+    title: 'Spend',
+    categories: 'A2:A3',
+    series: [{ values: 'B2:B3', nameCell: 'B1' }]
+  })
+  book.insertRows('Data', { at: 3, rows: [['Jan.5', 10]] })
+  book.deleteRows('Data', { at: 3 })
+
+  return book.save()
+}
+
+function editedSales(bytes: Uint8Array): Uint8Array {
+  const w = xlsx.open(bytes)
+  w.setCells('Sales', { B3: 125, F4: { value: 0.3, format: '0.0%' }, G4: { date: '2026-06-30' } })
+  w.appendRows('Sales', [['Q4', 80, 10.5, '=B8*C8']])
+  w.renameSheet('Notes', 'Commentary')
+  w.addSheet('Extra')
+  w.addChart('Sales', {
+    type: 'line',
+    categories: 'A3:A5',
+    series: [{ values: 'B3:B5', name: 'Units' }]
+  })
+  w.insertRows('Sales', { at: 4, rows: [['Q1.5', 130, 9.6, '=B4*C4']] })
+  w.deleteRows('Sales', { at: 3 })
+  w.deleteColumns('Sales', { column: 'E' })
+
+  return w.save()
+}
+
+fs.mkdirSync(out, { recursive: true })
+write('created.pptx', createdDeck())
+write('created.docx', createdDocument())
+write('created.xlsx', createdWorkbook())
+pair('edited-basic.pptx', fixture('basic.pptx'), editedDeck)
+pair('edited-charts.pptx', fixture('charts.pptx'), editedCharts)
+pair('edited-report.docx', fixture('report.docx'), editedReport)
+pair('edited-sales.xlsx', fixture('sales.xlsx'), editedSales)
+for (const [name, outcome] of Object.entries(expected())) {
+  if (outcome !== 'ok') continue
+  const [format, file] = name.split('/')
+  if (format === 'pptx' || format === 'docx' || format === 'xlsx') {
+    const edit: Edit = edits[format satisfies Format]
+    pair(`corpus-${file}`, readCorpus(name), edit)
+  }
+}
