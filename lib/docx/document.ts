@@ -15,6 +15,7 @@ import type { SaveOptions } from '../opc/properties.ts'
 import type { ChartInfo, ChartData, ChartSpec, DataResult, Changed } from '../drawingml/chart.ts'
 import type { TextInput } from '../drawingml/text.ts'
 import type { Alignment, Format, ParagraphSpec, Removed, Run } from './text.ts'
+import * as units from '../units.ts'
 
 export type { Alignment, Format, ParagraphSpec, Removed, Run }
 export type { CreateOptions } from './template.ts'
@@ -922,7 +923,12 @@ export class Document {
     return { rows: rows.length - 1 }
   }
 
-  addImage(at: number, bytes: Uint8Array, opts: ImageOptions = {}): Placed {
+  addImage(
+    at: number,
+    bytes: Uint8Array,
+    input: units.WithLengths<ImageOptions, units.SizeKey> = {}
+  ): Placed {
+    const opts = units.lengths(input, units.SIZE_KEYS) as ImageOptions
     const blocks = this.blocks()
     this.position(at, blocks.length)
     const size = this.imageSize(probe(bytes), opts)
@@ -945,7 +951,8 @@ export class Document {
     return { index: this.place(p, { blocks, at }), ...size }
   }
 
-  addChart(at: number, spec: DocChartSpec): Placed {
+  addChart(at: number, input: units.WithLengths<DocChartSpec, units.SizeKey>): Placed {
+    const spec = units.lengths(input, units.SIZE_KEYS) as DocChartSpec
     const blocks = this.blocks()
     this.position(at, blocks.length)
     const width = spec.width ?? this.textWidth() * EMU_PER_TWIP

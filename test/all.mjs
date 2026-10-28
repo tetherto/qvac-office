@@ -18,6 +18,7 @@ async function runTests() {
   await test.load(import.meta.resolve('./pptx-shapes.ts'))
   await test.load(import.meta.resolve('./pptx.ts'))
   await test.load(import.meta.resolve('./safety.ts'))
+  await test.load(import.meta.resolve('./units.ts'))
   await test.load(import.meta.resolve('./xlsx-charts.ts'))
   await test.load(import.meta.resolve('./xlsx-formula.ts'))
   await test.load(import.meta.resolve('./xlsx-reshape.ts'))

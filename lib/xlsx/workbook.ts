@@ -29,6 +29,7 @@ import type { Change } from './formula.ts'
 import type { ChartInfo, ChartType, Legend, Stacking } from '../drawingml/chart.ts'
 import type { SaveOptions } from '../opc/properties.ts'
 import type { ReshapeHost } from './reshape.ts'
+import * as units from '../units.ts'
 
 export type SheetRef = string | number
 export type { CellValue, CellRead, SheetRead, ReadOptions, CellStyle, CreateOptions }
@@ -746,7 +747,12 @@ export class Workbook {
     return { sheets: this.entries().length }
   }
 
-  addImage(sheet: SheetRef, bytes: Uint8Array, opts: ImageOptions = {}): Placed {
+  addImage(
+    sheet: SheetRef,
+    bytes: Uint8Array,
+    input: units.WithLengths<ImageOptions, units.SizeKey> = {}
+  ): Placed {
+    const opts = units.lengths(input, units.SIZE_KEYS) as ImageOptions
     const target = this.sheet(sheet)
     const info = probe(bytes)
     const o: Record<string, unknown> = isRecord(opts) ? opts : {}
@@ -766,7 +772,8 @@ export class Workbook {
     return { cell: refs.cell(at.row, at.col), ...size }
   }
 
-  addChart(sheet: SheetRef, input: SheetChartSpec): Placed {
+  addChart(sheet: SheetRef, raw: units.WithLengths<SheetChartSpec, units.SizeKey>): Placed {
+    const input = units.lengths(raw, units.SIZE_KEYS) as SheetChartSpec
     const target = this.sheet(sheet)
     const spec: Record<string, unknown> = isRecord(input) ? input : {}
     if (typeof spec.categories !== 'string') {

@@ -67,6 +67,7 @@ import type {
   Changed,
   ShapeInfo
 } from './types.ts'
+import * as units from '../units.ts'
 
 interface Located {
   entry: slides.SlideEntry
@@ -584,7 +585,12 @@ export class Presentation {
     return { index: at, layout: layoutName(layoutDoc), shapes: shapes.map(describe) }
   }
 
-  addPicture(slide: number, bytes: Uint8Array, opts: PictureOptions = {}): PlacedShape {
+  addPicture(
+    slide: number,
+    bytes: Uint8Array,
+    input: units.WithLengths<PictureOptions, units.BoxKey> = {}
+  ): PlacedShape {
+    const opts = units.lengths(input, units.BOX_KEYS) as PictureOptions
     const entry = slides.slideAt(this.deck, slide)
     const area = this.pictureArea(entry.part, opts)
     const box = this.pictureBox(probe(bytes), opts, area.box)
@@ -607,7 +613,11 @@ export class Presentation {
     return { id, ...box }
   }
 
-  addTextBox(slide: number, opts: TextBoxOptions = {}): PlacedShape {
+  addTextBox(
+    slide: number,
+    input: units.WithLengths<TextBoxOptions, units.BoxKey> = {}
+  ): PlacedShape {
+    const opts = units.lengths(input, units.BOX_KEYS) as TextBoxOptions
     const entry = slides.slideAt(this.deck, slide)
     const doc = this.package.xml(entry.part)
     const id = nextShapeId(doc)
@@ -626,7 +636,8 @@ export class Presentation {
     return { id, ...box }
   }
 
-  addTable(slide: number, opts: TableOptions): PlacedShape {
+  addTable(slide: number, input: units.WithLengths<TableOptions, units.BoxKey>): PlacedShape {
+    const opts = units.lengths(input, units.BOX_KEYS) as TableOptions
     const entry = slides.slideAt(this.deck, slide)
     const doc = this.package.xml(entry.part)
     const id = nextShapeId(doc)
@@ -645,7 +656,8 @@ export class Presentation {
     return { id, ...box }
   }
 
-  addChart(slide: number, spec: ChartOptions): PlacedShape {
+  addChart(slide: number, input: units.WithLengths<ChartOptions, units.BoxKey>): PlacedShape {
+    const spec = units.lengths(input, units.BOX_KEYS) as ChartOptions
     const entry = slides.slideAt(this.deck, slide)
     const box = this.box(spec)
     const part = this.package.freeName('/ppt/charts/chart%d.xml')
@@ -708,7 +720,8 @@ export class Presentation {
     return result
   }
 
-  setBox(target: ShapeRef, input: Partial<Box>): PlacedShape {
+  setBox(target: ShapeRef, raw: units.WithLengths<Partial<Box>, units.BoxKey>): PlacedShape {
+    const input = units.lengths(raw, units.BOX_KEYS) as Partial<Box>
     const { entry, found } = this.locate(target)
     const box = checkBox(input)
     const current = inherit.box({ pkg: this.package, slide: entry.part, el: found.el })
