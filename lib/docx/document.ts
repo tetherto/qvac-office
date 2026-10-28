@@ -30,9 +30,32 @@ import type { Outline, OutlineOptions } from './outline.ts'
 import type { TextQuery } from './match.ts'
 import type { RunFormat } from './text.ts'
 import type { FormatTextResult, LinkResult, ReplaceOptions, ReplaceResult } from './ranges.ts'
+import * as host from './host.ts'
+import * as lists from './lists.ts'
+import * as markdownIn from './markdown-in.ts'
+import * as markdownOut from './markdown-out.ts'
+import * as comments from './comments.ts'
+import * as footnotes from './footnotes.ts'
+import * as page from './page.ts'
+import * as toc from './toc.ts'
+import * as revisions from './revisions.ts'
+import * as templates from '../opc/templates.ts'
+import type { CommentAdded, CommentDeleted, CommentResolved, ResolveOptions } from './comments.ts'
+import type { CommentOptions } from './comments.ts'
+import type { FootnoteAdded, FootnoteOptions } from './footnotes.ts'
+import type { MarkdownOptions, MarkdownResult } from './markdown-out.ts'
+import type { PageOptions, PageResult, PageSetup } from './page.ts'
+import type { TocOptions } from './toc.ts'
+import type { ChangeCounts } from './revisions.ts'
+import type { DocumentConversion } from '../opc/templates.ts'
 
 export type { Alignment, Format, ParagraphSpec, Removed, Run }
 export type { CreateOptions } from './template.ts'
+export type { ListKind } from './lists.ts'
+export type { CommentAdded, CommentDeleted, CommentOptions, CommentResolved, ResolveOptions }
+export type { FootnoteAdded, FootnoteOptions, MarkdownOptions, MarkdownResult }
+export type { PageOptions, PageResult, PageSetup, TocOptions, ChangeCounts, DocumentConversion }
+export type { Orientation, PageMargins, PageName, PageSize } from './page.ts'
 export type TextSpec = string | ParagraphSpec
 export type Paragraphs = TextSpec | TextSpec[]
 
@@ -197,6 +220,14 @@ export interface ChartOptions {
 
 export interface HeaderOptions {
   type?: 'default' | 'first'
+}
+
+export interface TocResult extends InsertResult {
+  levels: number
+}
+
+export interface ChangeOptions {
+  in?: BlockRef
 }
 
 export interface HeaderResult {
@@ -1072,6 +1103,65 @@ export class Document {
     return result
   }
 
+  appendMarkdown(markdown: string): InsertResult {
+    return this.insertMarkdown(this.blockCount, markdown)
+  }
+
+  insertMarkdown(where: BlockRef, markdown: string): InsertResult {
+    const at = this.at(where, this.blocks())
+    return this.insertElements(at, markdownIn.build(this, markdown))
+  }
+
+  markdown(opts: MarkdownOptions = {}): MarkdownResult {
+    return markdownOut.write(this, opts)
+  }
+
+  addComment(block: BlockRef, opts: CommentOptions): CommentAdded {
+    return comments.add(this, host.paragraph(this, this.indexOf(block)), opts)
+  }
+
+  deleteComment(id: string | number): CommentDeleted {
+    return comments.remove(this, id)
+  }
+
+  resolveComment(id: string | number, opts: ResolveOptions = {}): CommentResolved {
+    return comments.resolve(this, id, opts)
+  }
+
+  addFootnote(block: BlockRef, opts: FootnoteOptions): FootnoteAdded {
+    return footnotes.add(this, host.paragraph(this, this.indexOf(block)), opts)
+  }
+
+  setPage(opts: PageOptions): PageResult {
+    return page.set(this, opts)
+  }
+
+  page(): PageSetup {
+    return page.read(this)
+  }
+
+  addTableOfContents(where: BlockRef, opts: TocOptions = {}): TocResult {
+    const at = this.at(where, this.blocks())
+    const built = toc.build(this, opts)
+    return { ...this.insertElements(at, built), levels: opts.levels ?? 3 }
+  }
+
+  acceptChanges(opts: ChangeOptions = {}): ChangeCounts {
+    return this.resolveChanges(opts, 'accept')
+  }
+
+  rejectChanges(opts: ChangeOptions = {}): ChangeCounts {
+    return this.resolveChanges(opts, 'reject')
+  }
+
+  get template(): boolean {
+    return templates.isTemplate(this.package, this.main)
+  }
+
+  toDocument(): DocumentConversion {
+    return templates.toDocument(this.package, this.main)
+  }
+
   save(opts?: SaveOptions): Uint8Array {
     if (this.package.has(this.main)) {
       this.dropOrphaned()
@@ -1231,18 +1321,22 @@ export class Document {
       throw new DocsError('INVALID_TEXT', 'give at least one paragraph')
     }
 
-    return list.map((spec) => {
+    const styled = list.map((spec) => {
       if (isRecord(spec) && spec.style !== undefined) {
         return { ...spec, styleId: this.styles.require(spec.style).id }
       }
 
       return spec
     })
+
+    return lists.assign(this, styled)
   }
 
   private build(spec: unknown, model: Element | null): Element {
     const p = text.buildParagraph(this.doc(), spec, model)
-    if (isRecord(spec) && spec.level !== undefined) {
+    if (isRecord(spec) && spec.list !== undefined) {
+      lists.apply(p, spec)
+    } else if (isRecord(spec) && spec.level !== undefined) {
       this.setLevel(p, spec.level)
     }
 
@@ -1699,6 +1793,39 @@ export class Document {
       heading: this.headingLevel(el),
       text: text.blockText(el)
     }
+  }
+
+  private insertElements(at: number, built: Element[]): InsertResult {
+    const blocks = this.blocks()
+    const { anchor, index, trailer } = this.anchor(blocks, at)
+    const blank = this.blankOnly(blocks)
+    const ids = this.stamp(built)
+    for (const el of built) {
+      this.body().insertBefore(el, anchor)
+    }
+
+    if (blank) {
+      xml.remove(blank)
+    }
+
+    if (trailer) {
+      xml.remove(trailer)
+    }
+
+    this.ensureTrailingParagraph()
+    this.touch()
+
+    return { index: index - (blank && index > 0 ? 1 : 0), count: built.length, ids }
+  }
+
+  private resolveChanges(opts: ChangeOptions, mode: 'accept' | 'reject'): ChangeCounts {
+    const scope = opts.in === undefined ? this.body() : this.block(this.indexOf(opts.in))
+    const counts = revisions.resolve([scope], mode)
+    if (revisions.total(counts)) {
+      this.touch()
+    }
+
+    return counts
   }
 }
 

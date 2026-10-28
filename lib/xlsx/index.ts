@@ -73,6 +73,7 @@ export type { DefinedName, NameOptions, NameDefined, NameDeleted } from './names
 export type { TableInfo, TableOptions, AddedTable, DeletedTable } from './tables.ts'
 export type { FindOptions, Found } from './search.ts'
 export type { HeaderGuess, SheetOutline } from './outline.ts'
+export type { DocumentConversion } from '../opc/templates.ts'
 
 export function open(bytes: Uint8Array | ArrayBuffer, opts?: OpenOptions): Workbook {
   return Workbook.open(bytes, opts)

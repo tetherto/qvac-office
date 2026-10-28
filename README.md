@@ -119,7 +119,19 @@ one, and inserts return them (`ids`, or `id` for a table, image or chart).
   http, https or mailto URL
 - `setText(index, text)` — refuses tracked changes, reports `removed` links, images,
   fields, content controls, equations, objects and page or column breaks
-- `insertParagraphs(at, paragraphs)`, `appendParagraphs(paragraphs)`
+- `insertParagraphs(at, paragraphs)`, `appendParagraphs(paragraphs)` — a paragraph takes
+  `list: 'bullet' | 'number'` with `level`; consecutive numbered paragraphs in one call share a
+  numbering instance and a new call restarts at 1
+- `appendMarkdown(md)`, `insertMarkdown(at, md)` — headings, paragraphs, nested bullet and
+  numbered lists, bold, italic, code, links, GitHub tables and `---` rules;
+  `markdown({ from, count })` returns `{ total, markdown }` in the same dialect
+- `addComment(block, { text, author, initials, find })`, `deleteComment(id)`,
+  `resolveComment(id, { done })`, `addFootnote(block, { text, find })`
+- `page()`, `setPage({ size, orientation, margins, all })` — `size` is `'letter'`, `'a4'` or
+  `{ width, height }`; lengths take units
+- `addTableOfContents(at, { levels, title })` — a TOC field Word refreshes on open
+- `acceptChanges({ in })`, `rejectChanges({ in })` — resolve tracked changes in the body or in
+  one block, so `setText` works on the paragraph afterwards
 - `deleteBlocks(index, { count })`, `sections()`, `replaceSection(index, opts)`,
   `deleteSection(index)`
 - `formatParagraph(index, format)`, `format(...)` (same), `formatStyle(name, format)`
@@ -202,6 +214,12 @@ const { doc, results } = tools.apply(document, [
   `render(doc, { pages, scale })`. `toPdf(doc)` returns the PDF.
   - They need the optional peers `bare-x-to-pdf`, `bare-pdfium` and `bare-png`.
   - Without them, or on Node, they fail with `RENDER_UNAVAILABLE`.
+
+## Templates
+
+`.dotx`, `.potx` and `.xltx` (and their macro-enabled variants) open like any other file. Each
+format class has a `template` property and `toDocument()`, which rewrites the main part's
+content type so the saved file is a regular `.docx`, `.pptx` or `.xlsx`.
 
 ## Guarantees
 

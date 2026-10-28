@@ -162,6 +162,35 @@ function textEditedReport(bytes: Uint8Array): Uint8Array {
   d.link(4, { find: 'eleven percent' }, 'https://example.com/revenue')
   d.addTable({ id: ids[0] }, { rows: [['A', 'B']] })
   d.addRow(2, ['1', '2'])
+
+  return d.save()
+}
+
+function contentDocument(): Uint8Array {
+  const doc = docx.create({ title: 'Content' })
+  doc.appendMarkdown(
+    '# Plan\n\nSome **bold**, *italic*, `code` and a [link](https://example.com).\n\n- One\n  - Nested\n1. First\n2. Second\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n---\n\n## Detail\n\nClosing words.'
+  )
+  doc.appendParagraphs([
+    { text: 'Bullet', list: 'bullet' },
+    { text: 'Number', list: 'number', level: 1 }
+  ])
+  doc.addComment(1, { text: 'Check the wording', author: 'Validator', find: 'bold' })
+  doc.resolveComment(doc.addComment(11, { text: 'Fine' }).id)
+  doc.addFootnote(1, { text: 'A footnote.', find: 'italic' })
+  doc.addTableOfContents(0, { levels: 2, title: 'Contents' })
+  doc.setPage({ size: 'a4', orientation: 'landscape', margins: { top: '2cm', left: '1in' } })
+
+  return doc.save()
+}
+
+function editedContent(bytes: Uint8Array): Uint8Array {
+  const d = docx.open(bytes)
+  d.insertMarkdown(2, '## Added\n\n- with a list\n- and [a link](https://example.org)')
+  d.addComment(6, { text: 'Comment', find: 'twelve' })
+  d.addFootnote(1, { text: 'Note' })
+  d.acceptChanges()
+  d.setPage({ margins: { bottom: '0.75in' } })
   return d.save()
 }
 
@@ -296,6 +325,8 @@ pair('edited-basic.pptx', fixture('basic.pptx'), editedDeck)
 pair('edited-charts.pptx', fixture('charts.pptx'), editedCharts)
 pair('edited-report.docx', fixture('report.docx'), editedReport)
 pair('edited-report-text.docx', fixture('report.docx'), textEditedReport)
+write('content.docx', contentDocument())
+pair('content-report.docx', fixture('report.docx'), editedContent)
 pair('edited-sales.xlsx', fixture('sales.xlsx'), editedSales)
 write('laid-out.pptx', laidOutDeck())
 pair('edited-layout.pptx', fixture('basic.pptx'), editedLayout)

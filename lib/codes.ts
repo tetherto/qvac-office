@@ -82,7 +82,8 @@ export const CODES = {
   NOT_SHAPE: 'the shape takes no fill or outline (a table, chart, group or frame)',
   CANNOT_GROUP: 'the shapes cannot be grouped (placeholders, fewer than two, or different parents)',
   NOT_GROUP: 'the shape is not a group',
-  UNSUPPORTED_SHAPE: 'the shape holds content that this edit cannot handle yet'
+  UNSUPPORTED_SHAPE: 'the shape holds content that this edit cannot handle yet',
+  COMMENT_NOT_FOUND: 'no comment with that id'
 } as const
 
 export type DocsErrorCode = keyof typeof CODES

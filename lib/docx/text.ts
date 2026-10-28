@@ -30,6 +30,7 @@ export interface ParagraphSpec {
   align?: Alignment
   pageBreak?: boolean
   level?: number
+  list?: 'bullet' | 'number'
 }
 
 export interface Removed {

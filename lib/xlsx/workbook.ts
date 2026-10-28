@@ -17,6 +17,8 @@ import {
 import { SharedStrings } from './strings.ts'
 import { Styles, validate as validateStyle, type CellStyle } from './styles.ts'
 import * as properties from '../opc/properties.ts'
+import * as templates from '../opc/templates.ts'
+import type { DocumentConversion } from '../opc/templates.ts'
 import * as chart from '../drawingml/chart.ts'
 import * as reshape from './reshape.ts'
 import { build, type CreateOptions } from './template.ts'
@@ -962,6 +964,14 @@ export class Workbook {
 
   outline(): SheetOutline[] {
     return outlines.outline(this.host())
+  }
+
+  get template(): boolean {
+    return templates.isTemplate(this.package, this.main)
+  }
+
+  toDocument(): DocumentConversion {
+    return templates.toDocument(this.package, this.main)
   }
 
   save(opts?: SaveOptions): Uint8Array {

@@ -4,6 +4,8 @@ import * as text from '../drawingml/text.ts'
 import * as chart from '../drawingml/chart.ts'
 import * as media from '../opc/media.ts'
 import * as properties from '../opc/properties.ts'
+import * as templates from '../opc/templates.ts'
+import type { DocumentConversion } from '../opc/templates.ts'
 import { probe, type ImageInfo } from '../image.ts'
 import { DocsError } from '../errors.ts'
 import { isRecord } from '../guards.ts'
@@ -992,6 +994,14 @@ export class Presentation {
     const result = relayout({ pkg: this.package, slide: entry.part, layout })
     this.touchSlide(entry.part)
     return result
+  }
+
+  get template(): boolean {
+    return templates.isTemplate(this.package, this.main)
+  }
+
+  toDocument(): DocumentConversion {
+    return templates.toDocument(this.package, this.main)
   }
 
   private get textContext(): DeckText {
