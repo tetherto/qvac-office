@@ -152,6 +152,19 @@ function editedReport(bytes: Uint8Array): Uint8Array {
   return d.save()
 }
 
+function textEditedReport(bytes: Uint8Array): Uint8Array {
+  const d = docx.open(bytes)
+  const { ids } = d.insertParagraphs(2, ['Summary in brief.', 'Second note.'])
+  d.deleteBlocks({ id: ids[1] })
+  d.replaceText({ find: 'grew twelve', replace: 'rose eleven' })
+  d.replaceText({ find: 'year', replace: 'yr', all: true, in: { id: ids[0] } })
+  d.formatText({ id: ids[0] }, { find: 'brief' }, { italic: true, color: 'C0392B' })
+  d.link(4, { find: 'eleven percent' }, 'https://example.com/revenue')
+  d.addTable({ id: ids[0] }, { rows: [['A', 'B']] })
+  d.addRow(2, ['1', '2'])
+  return d.save()
+}
+
 function createdWorkbook(): Uint8Array {
   const book = xlsx.create({ sheets: ['Data', 'Summary'] })
   book.appendRows('Data', [
@@ -246,6 +259,7 @@ write('sheet-features.xlsx', sheetFeatures())
 pair('edited-basic.pptx', fixture('basic.pptx'), editedDeck)
 pair('edited-charts.pptx', fixture('charts.pptx'), editedCharts)
 pair('edited-report.docx', fixture('report.docx'), editedReport)
+pair('edited-report-text.docx', fixture('report.docx'), textEditedReport)
 pair('edited-sales.xlsx', fixture('sales.xlsx'), editedSales)
 for (const [name, outcome] of Object.entries(expected())) {
   if (outcome !== 'ok') continue

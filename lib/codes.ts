@@ -72,7 +72,10 @@ export const CODES = {
   INVALID_DEFINED_NAME: 'the defined name or table name breaks Excel naming rules or is taken',
   NAME_NOT_FOUND: 'no defined name with that name in that scope',
   TABLE_NOT_FOUND: 'no table with that name in the workbook',
-  TABLE_IS_REFERENCED: 'formulas use the table in a form that cannot become a plain range'
+  TABLE_IS_REFERENCED: 'formulas use the table in a form that cannot become a plain range',
+  FIELD_TEXT: 'the matched text is a field result that Word recalculates',
+  RANGE_BOUNDARY: 'the matched text crosses the edge of a hyperlink or content control',
+  ALREADY_LINKED: 'the matched text is already inside a hyperlink'
 } as const
 
 export type DocsErrorCode = keyof typeof CODES

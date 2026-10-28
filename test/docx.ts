@@ -103,7 +103,7 @@ test('insertParagraphs adds styled paragraphs in place', (t) => {
     'West grew too',
     { pageBreak: true }
   ])
-  t.alike(result, { index: 6, count: 3 })
+  t.alike(result, { index: 6, count: 3, ids: result.ids })
   const read = blocks(reopen(doc))
   t.is(para(read[6]).style, 'List Bullet')
   t.is(para(read[7]).text, 'West grew too')
@@ -138,7 +138,7 @@ test('replaceSection swaps a heading and everything under it', (t) => {
     title: 'Income',
     body: ['Income rose.', 'It rose everywhere.']
   })
-  t.alike(result, { index: 2, removed: 5, added: 2 })
+  t.alike(result, { index: 2, removed: 5, added: 2, ids: result.ids })
   t.alike(texts(reopen(doc)).slice(0, 7), [
     'Quarterly Report',
     'Prepared by the finance team.',
@@ -168,7 +168,7 @@ test('deleteSection and deleteBlocks remove content', (t) => {
   const after = blocks(doc)
   t.is(after.length, 12)
   t.is(after[10].type, 'table')
-  t.alike(after[11], { index: 11, type: 'paragraph', style: 'Normal', text: '' })
+  t.alike(after[11], { index: 11, id: after[11].id, type: 'paragraph', style: 'Normal', text: '' })
   doc.deleteBlocks(0, { count: 2 })
   t.is(para(blocks(reopen(doc))[0]).text, 'Revenue')
   t.exception(() => doc.deleteBlocks(0, { count: 99 }), /count must be from 1 to/)
@@ -227,7 +227,7 @@ test('tables take cells, rows and new tables', (t) => {
       ['North', 3]
     ]
   })
-  t.alike(added, { index: 12, rows: 2, columns: 2 })
+  t.alike(added, { index: 12, id: added.id, rows: 2, columns: 2 })
   const read = table(blocks(reopen(doc))[12])
   t.alike(read.rows, [
     ['Region', 'Units'],
@@ -239,7 +239,7 @@ test('tables take cells, rows and new tables', (t) => {
 test('addImage inserts an inline picture sized by aspect ratio', (t) => {
   const doc = open()
   const placed = doc.addImage(2, fixture('red.png'), { width: units.inches(2), align: 'center' })
-  t.alike(placed, { index: 2, width: 1828800, height: 914400 })
+  t.alike(placed, { index: 2, id: placed.id, width: 1828800, height: 914400 })
   const again = reopen(doc)
   t.is(para(blocks(again)[2]).images, 1)
   const files = unzip(again.save())

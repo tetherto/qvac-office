@@ -75,9 +75,27 @@ kind, text }]`; `text` and `name` match a substring (or a regular expression wit
 
 ## Word
 
-The body is a list of blocks — paragraphs and tables — numbered from 0.
+The body is a list of blocks — paragraphs and tables — numbered from 0. Anywhere a block
+index or insert position is taken, `{ id }` works too: the paragraph's `w14:paraId` (8 hex
+digits; a table's is its first paragraph's). Ids do not move when other blocks are inserted
+or deleted. `read()` and `find()` report them, every paragraph the engine inserts gets a fresh
+one, and inserts return them (`ids`, or `id` for a table, image or chart).
 
-- `read({ from, count })` — blocks, headers, footers, footnotes and comments
+- `read({ from, count, maxChars, detail })` — blocks, headers, footers, footnotes and
+  comments. `maxChars` stops before the blocks' JSON passes that size (at least one block
+  is returned) and `next` is the index to continue from. `detail: 'runs'` adds each
+  paragraph's `runs` with their bold, italic, underline, size, color, font and link
+- `find({ text, regex, style, heading, matchCase })` — `[{ index, id, type, text, style }]`;
+  criteria combine, text is a substring, regex a source string
+- `outline({ depth })` — headings with level, title, `index` and `end` of the blocks they
+  span, plus the block total and character count
+- `replaceText({ find, replace, all, matchCase, in })` — matches across runs and keeps the
+  formatting of the run where the match starts; refuses matches in tracked changes
+  (`TRACKED_CHANGES`), field results (`FIELD_TEXT`) or across a hyperlink or content control
+  edge (`RANGE_BOUNDARY`) before changing anything
+- `formatText(block, { find, all, matchCase }, format)` — run formatting on just the match
+- `link(block, { find, matchCase }, url)` — wraps the first match in a hyperlink to an
+  http, https or mailto URL
 - `setText(index, text)` — refuses tracked changes, reports `removed` links, images,
   fields, content controls, equations, objects and page or column breaks
 - `insertParagraphs(at, paragraphs)`, `appendParagraphs(paragraphs)`

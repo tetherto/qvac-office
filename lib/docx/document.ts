@@ -16,6 +16,20 @@ import type { ChartInfo, ChartData, ChartSpec, DataResult, Changed } from '../dr
 import type { TextInput } from '../drawingml/text.ts'
 import type { Alignment, Format, ParagraphSpec, Removed, Run } from './text.ts'
 import * as units from '../units.ts'
+import * as ids from './ids.ts'
+import * as ranges from './ranges.ts'
+import * as budget from './budget.ts'
+import * as finder from './find.ts'
+import * as outlines from './outline.ts'
+import * as links from './links.ts'
+import { readRuns, type RunView } from './runs.ts'
+import type { BlockRef } from './ids.ts'
+import type { Target } from './match.ts'
+import type { Found } from './find.ts'
+import type { Outline, OutlineOptions } from './outline.ts'
+import type { TextQuery } from './match.ts'
+import type { RunFormat } from './text.ts'
+import type { FormatTextResult, LinkResult, ReplaceOptions, ReplaceResult } from './ranges.ts'
 
 export type { Alignment, Format, ParagraphSpec, Removed, Run }
 export type { CreateOptions } from './template.ts'
@@ -25,10 +39,13 @@ export type Paragraphs = TextSpec | TextSpec[]
 export interface ReadOptions {
   from?: number
   count?: number
+  maxChars?: number
+  detail?: 'runs'
 }
 
 export interface ParagraphBlock {
   index: number
+  id?: string
   type: 'paragraph'
   style: string
   text: string
@@ -40,16 +57,19 @@ export interface ParagraphBlock {
   images?: number
   charts?: ChartInfo[]
   pageBreak?: boolean
+  runs?: RunView[]
 }
 
 export interface TableBlock {
   index: number
+  id?: string
   type: 'table'
   rows: string[][]
 }
 
 export interface OtherBlock {
   index: number
+  id?: string
   type: 'other'
   text: string
 }
@@ -70,6 +90,7 @@ export interface Comment {
 export interface ReadResult {
   total: number
   blocks: Block[]
+  next?: number
   headers: string[]
   footers: string[]
   footnotes: Note[]
@@ -84,6 +105,7 @@ export interface TextResult {
 export interface InsertResult {
   index: number
   count: number
+  ids: string[]
 }
 
 export interface DeleteOptions {
@@ -110,6 +132,7 @@ export interface SectionResult {
   index: number
   removed: number
   added: number
+  ids: string[]
 }
 
 export interface TableOptions {
@@ -120,18 +143,19 @@ export interface TableOptions {
 
 export interface TableResult {
   index: number
+  id: string
   rows: number
   columns: number
 }
 
 export interface CellRef {
-  table: number
+  table: BlockRef
   row: number
   column: number
 }
 
 export interface RowRef {
-  table: number
+  table: BlockRef
   row: number
 }
 
@@ -158,6 +182,7 @@ export interface Size {
 
 export interface Placed extends Size {
   index: number
+  id: string
 }
 
 export interface DocChartSpec extends ChartSpec {
@@ -652,14 +677,27 @@ export class Document {
       throw new DocsError('INVALID_OPTIONS', `count must be at least 1, got ${String(opts.count)}`)
     }
 
-    return {
+    const runs = detailRuns(opts.detail)
+    const window = {
+      from,
+      end: Math.min(all.length, from + count),
       total: all.length,
-      blocks: all.slice(from, from + count).map((el, i) => this.describe(el, from + i)),
+      maxChars: budget.validateMaxChars(opts.maxChars)
+    }
+    const page = budget.take(window, (i) => this.readBlock(all[i], i, runs))
+    const result: ReadResult = {
+      total: all.length,
+      blocks: page.items,
       headers: this.partTexts(REL.header),
       footers: this.partTexts(REL.footer),
       footnotes: this.notes(),
       comments: this.comments()
     }
+    if (page.next !== undefined) {
+      result.next = page.next
+    }
+
+    return result
   }
 
   setHeader(value: Paragraphs | null, opts: HeaderOptions = {}): HeaderResult {
@@ -674,7 +712,8 @@ export class Document {
     return this.styles.names('paragraph')
   }
 
-  setText(index: number, input: TextSpec): TextResult {
+  setText(ref: BlockRef, input: TextSpec): TextResult {
+    const index = this.indexOf(ref)
     const p = this.paragraph(index)
     const before = text.paragraphText(p)
     const runs = text.normalizeRuns(input)
@@ -690,16 +729,18 @@ export class Document {
     return withRemoved({ changed: true }, removed)
   }
 
-  insertParagraphs(at: number, specs: Paragraphs): InsertResult {
+  insertParagraphs(where: BlockRef, specs: Paragraphs): InsertResult {
     const blocks = this.blocks()
-    this.position(at, blocks.length)
+    const at = this.at(where, blocks)
     const list = this.specs(specs)
     const before = this.templateBefore(blocks, at)
     const { anchor, index, trailer } = this.anchor(blocks, at)
     const body = this.body()
     const blank = this.blankOnly(blocks)
-    for (const spec of list) {
-      body.insertBefore(this.build(spec, before), anchor)
+    const built = list.map((spec) => this.build(spec, before))
+    const added = this.stamp(built)
+    for (const p of built) {
+      body.insertBefore(p, anchor)
     }
 
     if (blank) {
@@ -713,16 +754,17 @@ export class Document {
     this.touch()
     const shift = blank && index > 0 ? 1 : 0
 
-    return { index: index - shift, count: list.length }
+    return { index: index - shift, count: list.length, ids: added }
   }
 
   appendParagraphs(specs: Paragraphs): InsertResult {
     return this.insertParagraphs(this.blockCount, specs)
   }
 
-  deleteBlocks(index: number, opts: DeleteOptions = {}): BlocksResult {
+  deleteBlocks(ref: BlockRef, opts: DeleteOptions = {}): BlocksResult {
     const count = opts.count ?? 1
     const blocks = this.blocks()
+    const index = ids.resolve(blocks, ref)
     this.block(index)
     if (!Number.isInteger(count) || count < 1 || index + count > blocks.length) {
       throw new DocsError(
@@ -761,12 +803,14 @@ export class Document {
     return out
   }
 
-  replaceSection(index: number, opts: SectionOptions = {}): SectionResult {
+  replaceSection(ref: BlockRef, opts: SectionOptions = {}): SectionResult {
     const blocks = this.blocks()
+    const index = ids.resolve(blocks, ref)
     const level = this.heading(blocks, index)
     const end = this.sectionEnd(blocks, { index, level })
     const body = blocks.slice(index + 1, end)
     const list = opts.body === undefined ? null : this.specs(opts.body)
+    const built: Element[] = []
     if (opts.title !== undefined) {
       text.assertUntracked(blocks[index], `heading ${index}`)
       text.replaceContent(blocks[index], opts.title)
@@ -777,8 +821,9 @@ export class Document {
         (el) => el.localName === 'p' && this.headingLevel(el) === null && !this.isList(el)
       )
       const anchor = blocks[end] ?? this.sectPr()
-      for (const spec of list) {
-        this.body().insertBefore(this.build(spec, model ?? null), anchor)
+      built.push(...list.map((spec) => this.build(spec, model ?? null)))
+      for (const p of built) {
+        this.body().insertBefore(p, anchor)
       }
 
       for (const el of body) {
@@ -788,18 +833,24 @@ export class Document {
 
     this.touch()
 
-    return { index, removed: list ? body.length : 0, added: list ? list.length : 0 }
+    return {
+      index,
+      removed: list ? body.length : 0,
+      added: list ? list.length : 0,
+      ids: this.stamp(built)
+    }
   }
 
-  deleteSection(index: number): BlocksResult {
+  deleteSection(ref: BlockRef): BlocksResult {
     const blocks = this.blocks()
+    const index = ids.resolve(blocks, ref)
     const level = this.heading(blocks, index)
     const end = this.sectionEnd(blocks, { index, level })
     return this.deleteBlocks(index, { count: end - index })
   }
 
-  formatParagraph(index: number, input: Format): Changed {
-    const p = this.paragraph(index)
+  formatParagraph(ref: BlockRef, input: Format): Changed {
+    const p = this.paragraph(this.indexOf(ref))
     const { align, ...run } = text.validateFormat(input)
     if (align) {
       text.setAlign(p, align)
@@ -823,8 +874,8 @@ export class Document {
     return { changed: true }
   }
 
-  format(index: number, input: Format): Changed {
-    return this.formatParagraph(index, input)
+  format(ref: BlockRef, input: Format): Changed {
+    return this.formatParagraph(ref, input)
   }
 
   formatStyle(name: string, input: Format): FormattedStyle {
@@ -835,18 +886,19 @@ export class Document {
     return this.styles.format(name, input)
   }
 
-  addTable(at: number, opts: TableOptions): TableResult {
+  addTable(where: BlockRef, opts: TableOptions): TableResult {
     const blocks = this.blocks()
-    this.position(at, blocks.length)
+    const at = this.at(where, blocks)
     const rows = validateRows(isRecord(opts) ? opts.rows : undefined)
     const columns = Math.max(...rows.map((r) => r.length))
     const header = opts.header !== false
     const tbl = this.tableElement({ rows, columns, header, styleId: this.tableStyleId(opts.style) })
+    const [id] = this.stamp([tbl])
     const { anchor, index } = this.anchor(blocks, at)
     this.body().insertBefore(tbl, anchor)
     this.ensureTrailingParagraph()
     this.touch()
-    return { index, rows: rows.length, columns }
+    return { index, id, rows: rows.length, columns }
   }
 
   setCell(cell: CellRef, input: TextSpec): TextResult {
@@ -857,7 +909,7 @@ export class Document {
     return withRemoved({ changed: true }, removed)
   }
 
-  addRow(table: number, values: (string | number | null)[], opts: RowOptions = {}): RowsResult {
+  addRow(table: BlockRef, values: (string | number | null)[], opts: RowOptions = {}): RowsResult {
     const tbl = this.table(table)
     const rows = unwrapped(tbl, 'tr')
     const at = opts.at ?? rows.length
@@ -884,6 +936,7 @@ export class Document {
     }
 
     cells.forEach((tc, c) => fillCell(tc, cellText(values[c])))
+    this.stamp([tr])
     insertRow(tr, { tbl, rows, at })
     this.touch()
 
@@ -924,13 +977,13 @@ export class Document {
   }
 
   addImage(
-    at: number,
+    where: BlockRef,
     bytes: Uint8Array,
     input: units.WithLengths<ImageOptions, units.SizeKey> = {}
   ): Placed {
     const opts = units.size(input)
     const blocks = this.blocks()
-    this.position(at, blocks.length)
+    const at = this.at(where, blocks)
     const size = this.imageSize(probe(bytes), opts)
     const { rId } = media.addImage(this.package, bytes, { source: this.main, dir: 'media' })
     const doc = this.doc()
@@ -948,13 +1001,15 @@ export class Document {
       .append(p, text.wEl(doc, 'r'))
       .appendChild(inlineDrawing(pictureGraphic(doc, { ...frame, rId }), frame))
 
-    return { index: this.place(p, { blocks, at }), ...size }
+    const [placed] = this.stamp([p])
+
+    return { index: this.place(p, { blocks, at }), id: placed, ...size }
   }
 
-  addChart(at: number, input: units.WithLengths<DocChartSpec, units.SizeKey>): Placed {
+  addChart(where: BlockRef, input: units.WithLengths<DocChartSpec, units.SizeKey>): Placed {
     const spec = units.size(input)
     const blocks = this.blocks()
-    this.position(at, blocks.length)
+    const at = this.at(where, blocks)
     const width = spec.width ?? this.textWidth() * EMU_PER_TWIP
     const height = spec.height ?? Math.round(width * 0.6)
     checkPositive({ width, height })
@@ -966,25 +1021,55 @@ export class Document {
     const p = text.wEl(doc, 'p')
     const frame = { id, size: { width, height }, name: spec.name || `Chart ${id}` }
     xml.append(p, text.wEl(doc, 'r')).appendChild(inlineDrawing(chartGraphic(doc, rId), frame))
-    return { index: this.place(p, { blocks, at }), width, height }
+    const [placed] = this.stamp([p])
+    return { index: this.place(p, { blocks, at }), id: placed, width, height }
   }
 
-  setChartData(index: number, data: ChartData, opts: ChartOptions = {}): DataResult {
+  setChartData(ref: BlockRef, data: ChartData, opts: ChartOptions = {}): DataResult {
     return chart.setChartData(
-      { pkg: this.package, part: this.chartPart(index, opts.chart ?? 0) },
+      { pkg: this.package, part: this.chartPart(this.indexOf(ref), opts.chart ?? 0) },
       data
     )
   }
 
-  setChartTitle(index: number, title: TextInput | null, opts: ChartOptions = {}): Changed {
+  setChartTitle(ref: BlockRef, title: TextInput | null, opts: ChartOptions = {}): Changed {
     if (!(title === null || typeof title === 'string' || Array.isArray(title))) {
       throw new DocsError('INVALID_TEXT', 'title must be text, or null to remove it')
     }
 
     return chart.setChartTitle(
-      { pkg: this.package, part: this.chartPart(index, opts.chart ?? 0) },
+      { pkg: this.package, part: this.chartPart(this.indexOf(ref), opts.chart ?? 0) },
       title
     )
+  }
+
+  find(query: finder.FindQuery): Found[] {
+    return finder.find(this.blocks(), (el) => this.summary(el), query)
+  }
+
+  outline(opts: OutlineOptions = {}): Outline {
+    return outlines.outline(this.blocks(), this.sections(), opts)
+  }
+
+  replaceText(opts: ReplaceOptions): ReplaceResult {
+    const result = ranges.replaceText(this.targets(opts.in), opts)
+    this.touchIf(result.replaced)
+    return result
+  }
+
+  formatText(ref: BlockRef, query: TextQuery, format: RunFormat): FormatTextResult {
+    const result = ranges.formatText(this.targets(ref), query, format)
+    this.touchIf(result.formatted)
+    return result
+  }
+
+  link(ref: BlockRef, query: TextQuery, url: string): LinkResult {
+    const target = links.validateUrl(url)
+    const rel = (): string => links.addHyperlink(this.package.rels(this.main), target)
+    const style = this.styles.resolve('Hyperlink', 'character')?.id ?? null
+    const result = ranges.linkText(this.targets(ref), query, { rel, style })
+    this.touchIf(result.linked)
+    return result
   }
 
   save(opts?: SaveOptions): Uint8Array {
@@ -1069,7 +1154,8 @@ export class Document {
     throw new DocsError('NOT_PARAGRAPH', `block ${index} is ${kind}`)
   }
 
-  private table(index: number): Element {
+  private table(ref: BlockRef): Element {
+    const index = this.indexOf(ref)
     const el = this.block(index)
     if (el.localName !== 'tbl') {
       throw new DocsError('NOT_TABLE', `block ${index} is not a table`)
@@ -1343,7 +1429,9 @@ export class Document {
     const blocks = this.blocks()
     const last = blocks[blocks.length - 1]
     if (!last || last.localName !== 'p') {
-      this.body().insertBefore(text.wEl(this.doc(), 'p'), this.sectPr())
+      const p = text.wEl(this.doc(), 'p')
+      this.stamp([p])
+      this.body().insertBefore(p, this.sectPr())
     }
   }
 
@@ -1403,15 +1491,16 @@ export class Document {
 
   private describe(el: Element, index: number): Block {
     if (el.localName === 'tbl') {
-      return { index, type: 'table', rows: tableRows(el) }
+      return { index, ...ids.idField(el), type: 'table', rows: tableRows(el) }
     }
 
     if (el.localName === 'sdt') {
-      return { index, type: 'other', text: text.blockText(el) }
+      return { index, ...ids.idField(el), type: 'other', text: text.blockText(el) }
     }
 
     const out: ParagraphBlock = {
       index,
+      ...ids.idField(el),
       type: 'paragraph',
       style: this.styles.nameOf(this.styleIdOf(el)),
       text: text.paragraphText(el)
@@ -1437,6 +1526,15 @@ export class Document {
     }
 
     return out
+  }
+
+  private readBlock(el: Element, index: number, runs: boolean): Block {
+    const block = this.describe(el, index)
+    if (runs && block.type === 'paragraph') {
+      block.runs = readRuns(el, (link) => this.linkTarget(link))
+    }
+
+    return block
   }
 
   private chartParts(el: Element): string[] {
@@ -1550,6 +1648,57 @@ export class Document {
     )
 
     return tbl
+  }
+
+  private indexOf(ref: BlockRef): number {
+    return ids.resolve(this.blocks(), ref)
+  }
+
+  private at(where: BlockRef, blocks: Element[]): number {
+    const at = ids.resolve(blocks, where)
+    this.position(at, blocks.length)
+    return at
+  }
+
+  private stamp(blocks: Element[]): string[] {
+    return ids.stamp(this.package.root(this.main), blocks)
+  }
+
+  private targets(ref: BlockRef | undefined): Target[] {
+    if (ref === undefined) {
+      return this.blocks().map((el, index) => [index, el])
+    }
+
+    const index = this.indexOf(ref)
+
+    return [[index, this.block(index)]]
+  }
+
+  private touchIf(changed: number): void {
+    if (changed > 0) {
+      this.touch()
+    }
+  }
+
+  private linkTarget(link: Element): string | undefined {
+    const anchor = text.wGet(link, 'anchor')
+    if (anchor) {
+      return `#${anchor}`
+    }
+
+    return this.package.rels(this.main).get(link.getAttributeNS(R, 'id'))?.target
+  }
+
+  private summary(el: Element): finder.Summary {
+    const paragraph = el.localName === 'p'
+    const styleId = paragraph ? this.styleIdOf(el) : finder.tableStyleId(el)
+    return {
+      type: finder.blockType(el),
+      style: paragraph || styleId ? this.styles.nameOf(styleId) : '',
+      styleId,
+      heading: this.headingLevel(el),
+      text: text.blockText(el)
+    }
   }
 }
 
@@ -1665,6 +1814,16 @@ function tableRows(el: Element): string[][] {
         .join('\n')
     )
   )
+}
+
+function detailRuns(detail: unknown): boolean {
+  if (detail === undefined) return false
+  if (detail === 'runs') return true
+  throw new DocsError('INVALID_OPTIONS', `detail must be "runs", got ${String(detail)}`, {
+    field: 'detail',
+    expected: ['runs'],
+    got: detail
+  })
 }
 
 function listLevel(el: Element): number {
