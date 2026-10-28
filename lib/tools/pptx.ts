@@ -153,7 +153,7 @@ export const PPTX: OpTable = {
     summary: 'Add a table',
     slots: [
       req('slide', s.SLIDE),
-      group(...BOX, req('rows', s.ROWS), opt('header', s.BOOLEAN), opt('name', s.STRING))
+      group(...BOX, ...INTO, req('rows', s.ROWS), opt('header', s.BOOLEAN), opt('name', s.STRING))
     ]
   },
   setBox: { summary: 'Move or resize a shape', slots: [TARGET, group(...BOX)] },
@@ -163,7 +163,7 @@ export const PPTX: OpTable = {
     slots: [
       req('slide', s.SLIDE),
       IMAGE,
-      group(...BOX, opt('name', s.STRING), opt('description', s.STRING))
+      group(...BOX, ...INTO, opt('name', s.STRING), opt('description', s.STRING))
     ]
   },
   replacePicture: {

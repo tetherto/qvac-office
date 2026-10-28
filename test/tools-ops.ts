@@ -65,13 +65,16 @@ test('powerpoint layout operations run through apply', (t) => {
     },
     { op: 'setTheme', colors: { accent1: 'C00000' }, fonts: { heading: 'Georgia' } },
     { op: 'theme' },
+    { op: 'addSlide', layout: 'Title and Content' },
+    { op: 'addTable', slide: 1, into: 'body', rows: [['a', 'b']] },
     { op: 'setSize', size: '4:3', scale: true },
     { op: 'size' }
   ])
   t.is((results[4] as { x: number }).x, 4 * 914400)
   t.alike((results[5] as { children: number[] }).children.length, 2)
   t.is((results[9] as { colors: { accent1: string } }).colors.accent1, 'C00000')
-  t.is((results[11] as { preset: string }).preset, '4:3')
+  t.not((results[11] as { replaced?: number }).replaced, undefined)
+  t.is((results[13] as { preset: string }).preset, '4:3')
 })
 
 test('excel calculation and templates run through apply', (t) => {
