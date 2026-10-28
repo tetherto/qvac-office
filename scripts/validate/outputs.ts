@@ -86,7 +86,21 @@ function editedDeck(bytes: Uint8Array): Uint8Array {
   d.replacePicture({ slide: 0, shape: 3 }, png)
   d.setNotes(2, 'Notes')
   d.deleteSlide(2)
-  return d.save()
+  return textEdits(d).save()
+}
+
+function textEdits(d: pptx.Presentation): pptx.Presentation {
+  const [hit] = d.find({ text: 'scatter' })
+  d.replaceText({ find: 'scatter', replace: 'spread', all: true, notes: true })
+  d.formatText({ slide: { id: hit.slideId }, shape: hit.shape }, { find: 'spread' }, { bold: true })
+  d.link(
+    { slide: { id: hit.slideId }, shape: hit.shape },
+    { find: 'spread' },
+    'https://example.com'
+  )
+  d.moveSlide({ id: hit.slideId }, { to: 0 })
+
+  return d
 }
 
 function editedCharts(bytes: Uint8Array): Uint8Array {

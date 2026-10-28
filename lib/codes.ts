@@ -60,7 +60,9 @@ export const CODES = {
   SHEET_IS_REFERENCED: 'other formulas, names or charts refer to the sheet',
   LAST_SHEET: 'a workbook needs at least one visible sheet',
   UNKNOWN_OPERATION: 'the format has no operation with that name',
-  RENDER_UNAVAILABLE: 'rendering needs Bare with bare-x-to-pdf, bare-pdfium and bare-png'
+  RENDER_UNAVAILABLE: 'rendering needs Bare with bare-x-to-pdf, bare-pdfium and bare-png',
+  TEXT_NOT_FOUND: 'no text in the target matches the search',
+  INVALID_LINK: 'a hyperlink is not an http, https or mailto URL'
 } as const
 
 export type DocsErrorCode = keyof typeof CODES

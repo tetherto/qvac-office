@@ -1,5 +1,6 @@
 import * as xml from '../xml.ts'
 import { DocsError } from '../errors.ts'
+import { isRecord } from '../guards.ts'
 import type { Element } from '../xml.ts'
 import type { Package } from '../opc/package.ts'
 import { layoutName, layoutType, hasBody } from './read.ts'
@@ -69,18 +70,40 @@ export function entries(deck: Deck): SlideEntry[] {
   })
 }
 
-export function slideAt(deck: Deck, index: unknown): SlideEntry {
-  const all = entries(deck)
-  const found = typeof index === 'number' && Number.isInteger(index) ? all[index] : undefined
-  if (!found) {
-    const range = all.length ? ` (0 to ${all.length - 1})` : ''
-    throw new DocsError(
-      'SLIDE_NOT_FOUND',
-      `slide ${String(index)} does not exist; the deck has ${all.length} slides${range}`
-    )
+export function slideLabel(ref: unknown): string {
+  return isRecord(ref) && 'id' in ref ? `id ${String(ref.id)}` : String(ref)
+}
+
+function slideNotFound(all: SlideEntry[], ref: unknown): DocsError {
+  const range = all.length ? ` (0 to ${all.length - 1})` : ''
+  const ids = all.map((e) => Number(e.id))
+  return new DocsError(
+    'SLIDE_NOT_FOUND',
+    `slide ${slideLabel(ref)} does not exist; the deck has ${all.length} slides${range} with ids ${ids.join(', ') || 'none'}`,
+    { field: 'slide', got: ref, expected: 'a slide index or { id }', candidates: ids }
+  )
+}
+
+function positionOf(all: SlideEntry[], ref: unknown): number {
+  if (isRecord(ref) && 'id' in ref) {
+    return Number.isInteger(ref.id) ? all.findIndex((e) => e.id === String(ref.id)) : -1
   }
 
-  return found
+  return typeof ref === 'number' && Number.isInteger(ref) && ref >= 0 && ref < all.length ? ref : -1
+}
+
+export function slideIndex(deck: Deck, ref: unknown): number {
+  const all = entries(deck)
+  const index = positionOf(all, ref)
+  if (index === -1) {
+    throw slideNotFound(all, ref)
+  }
+
+  return index
+}
+
+export function slideAt(deck: Deck, ref: unknown): SlideEntry {
+  return entries(deck)[slideIndex(deck, ref)]
 }
 
 export function layoutOf(pkg: Package, slidePart: string): string | null {

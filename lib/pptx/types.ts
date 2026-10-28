@@ -8,8 +8,10 @@ export type { ShapeKind } from './shapes.ts'
 
 export type ShapeId = number | 'title' | 'subtitle' | 'body'
 
+export type SlideRef = number | { id: number }
+
 export interface ShapeRef {
-  slide: number
+  slide: SlideRef
   shape: ShapeId
 }
 
@@ -21,7 +23,8 @@ export interface CellRef extends ShapeRef {
 export interface ReadOptions {
   from?: number
   count?: number
-  slides?: number[]
+  slides?: SlideRef[]
+  detail?: 'runs'
 }
 
 export interface ShapeInfo {
@@ -38,6 +41,7 @@ export interface ShapeInfo {
 
 export interface SlideInfo {
   index: number
+  id: number
   layout: string | null
   shapes: ShapeInfo[]
   notes?: string
@@ -69,7 +73,7 @@ export interface RunCount {
 }
 
 export interface AddSlideOptions {
-  like?: number
+  like?: SlideRef
   layout?: string
   at?: number
   title?: TextInput
@@ -79,6 +83,7 @@ export interface AddSlideOptions {
 
 export interface AddedSlide {
   index: number
+  id: number
   layout: string
   shapes: ShapeInfo[]
 }

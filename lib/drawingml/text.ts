@@ -2,6 +2,7 @@ import * as xml from '../xml.ts'
 import { DocsError } from '../errors.ts'
 import { isRecord } from '../guards.ts'
 import type { Element, Node } from '../xml.ts'
+import type { ReadRun } from './runs.ts'
 
 export interface Paragraph {
   text: string
@@ -25,6 +26,7 @@ export interface Style {
 export interface ReadParagraph {
   text: string
   level: number
+  runs?: ReadRun[]
 }
 
 export interface Losses {
@@ -47,7 +49,7 @@ const ALIGNMENTS: Record<Alignment, string> = {
 }
 const FILLS = ['noFill', 'solidFill', 'gradFill', 'blipFill', 'pattFill', 'grpFill']
 const LINKS = ['hlinkClick', 'hlinkMouseOver']
-const RUN_PROPERTY_ORDER = [
+export const RUN_PROPERTY_ORDER = [
   'ln',
   'noFill',
   'solidFill',
@@ -396,7 +398,7 @@ function setColor(rPr: Element, color: string): void {
   xml.insertOrdered(rPr, solid, RUN_PROPERTY_ORDER)
 }
 
-function applyRunStyle(rPr: Element, style: Style): void {
+export function applyRunStyle(rPr: Element, style: Style): void {
   if (style.size !== undefined) {
     rPr.setAttribute('sz', String(Math.round(style.size * 100)))
   }

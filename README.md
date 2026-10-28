@@ -37,15 +37,36 @@ xlsx/       sheets, cells, strings, styles, formulas, reference moving, drawings
 
 ## PowerPoint
 
-Slides are numbered from 0. A shape is `{ slide, shape }`, where `shape` is the id `read()`
-reports or `'title'`, `'subtitle'` or `'body'`.
+Slides are numbered from 0. Wherever a slide is taken it can also be `{ id }`, the stable
+`p:sldId/@id` that `read()`, `outline()`, `find()` and `addSlide()` report, so a plan of several
+calls survives inserts, moves and deletes. A shape is `{ slide, shape }`, where `shape` is the id
+`read()` reports or `'title'`, `'subtitle'` or `'body'`.
 
-- `read({ from, count } | { slides })`, `layouts()`
+- `read({ from, count, detail } | { slides, detail })`, `layouts()` — with `detail: 'runs'`
+  each paragraph also lists its runs and the formatting set on each (`bold`, `italic`,
+  `underline`, `size`, `color`, `font`, `link`, `field`); inherited formatting is not resolved
+- `readPage({ from, maxChars, detail })` — `{ slides, next }`: stops before the slides' JSON
+  would pass `maxChars` (always at least one slide); pass `next` back as `from`. `read()` keeps
+  returning a plain array and refuses `maxChars`
+- `outline()` — per slide its index, id, layout, title, shape count, whether it has notes and
+  its chart, table and picture counts
+- `find({ text, placeholder, kind, name, regex, matchCase })` — `[{ slide, slideId, shape, name,
+kind, text }]`; `text` and `name` match a substring (or a regular expression with `regex`),
+  ignoring case unless `matchCase`; `placeholder` is `'title'`, `'subtitle'`, `'body'` or a
+  placeholder type
+- `replaceText({ find, replace, all, matchCase, slide, shape, notes })` — across the deck, a
+  slide or a shape (table cells included, notes with `notes: true`); matches across runs and keeps
+  the formatting of the run where the match starts; matches that touch a field or a line break
+  are left alone and counted in `refused`. Returns `{ replaced, shapes: [{ slide, shape }] }`
+- `formatText(target, { find, all, matchCase }, style)` — styles only the matched text,
+  splitting runs; `link(target, { find, all, matchCase }, url)` — links the matched text to an
+  `http`, `https` or `mailto` URL
 - `setText(target, text, { fit: 'shrink' })` — keeps run and paragraph formatting, reports
   `removed` links and fields and an `overflow` estimate
 - `setCellText({ slide, shape, row, column }, text)`
 - `setStyle(target, style, { paragraph })`, `format(...)` (same)
-- `addSlide({ like, layout, at, title, body, image })`, `deleteSlide(slide)`, `moveSlide(slide, { to })`
+- `addSlide({ like, layout, at, title, body, image })` — returns its `index` and `id`,
+  `deleteSlide(slide)`, `moveSlide(slide, { to })`
 - `addPicture(slide, image, box)`, `replacePicture(target, image, { stretch })`
 - `addTextBox(slide, opts)`, `addTable(slide, opts)`, `setBackground(slide, color)`
 - `addChart(slide, spec)`, `setChartData(target, data)`, `setChartTitle(target, title)`

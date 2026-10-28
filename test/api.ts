@@ -82,7 +82,10 @@ test('read pages through large documents and decks', (t) => {
     deck.read({ slides: [2, 0] }).map((s) => s.index),
     [0, 2]
   )
-  t.exception(() => deck.read({ slides: [5] }), /slides must list slide indexes from 0 to 2/)
+  t.exception(
+    () => deck.read({ slides: [5] }),
+    /slide 5 does not exist; the deck has 3 slides \(0 to 2\)/
+  )
   t.exception(() => deck.read({ slides: [0], from: 1 }), /either slides or from\/count/)
   t.is(pptx.create().read().length, 0)
 })

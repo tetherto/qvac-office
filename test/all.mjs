@@ -17,6 +17,8 @@ async function runTests() {
   await test.load(import.meta.resolve('./fuzz.ts'))
   await test.load(import.meta.resolve('./opc.ts'))
   await test.load(import.meta.resolve('./pptx-shapes.ts'))
+  await test.load(import.meta.resolve('./pptx-text-ranges.ts'))
+  await test.load(import.meta.resolve('./pptx-text-refs.ts'))
   await test.load(import.meta.resolve('./pptx.ts'))
   await test.load(import.meta.resolve('./render.ts'))
   await test.load(import.meta.resolve('./safety.ts'))

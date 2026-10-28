@@ -12,6 +12,9 @@ import * as fit from './fit.ts'
 import * as template from './template.ts'
 import * as slides from './slides.ts'
 import * as notes from './notes.ts'
+import * as page from './page.ts'
+import * as finder from './find.ts'
+import * as textRanges from './text-ranges.ts'
 import {
   fitted,
   framed,
@@ -65,8 +68,19 @@ import type {
   Deleted,
   Remaining,
   Changed,
-  ShapeInfo
+  ShapeInfo,
+  SlideRef
 } from './types.ts'
+import type { FindOptions, FoundShape, SlideOutline } from './find.ts'
+import type { PageOptions, SlidePage } from './page.ts'
+import type {
+  ReplaceTextOptions,
+  ReplacedText,
+  FormattedText,
+  LinkedText,
+  DeckText
+} from './text-ranges.ts'
+import type { Search } from '../drawingml/ranges.ts'
 import * as units from '../units.ts'
 
 interface Located {
@@ -228,7 +242,7 @@ function shapeNotFound(slide: unknown, ref: unknown, shapes: ShapeEntry[]): Docs
 
   return new DocsError(
     'SHAPE_NOT_FOUND',
-    `slide ${String(slide)} has no shape ${JSON.stringify(ref)}; its shapes are: ${listing.join(', ') || 'none'}`
+    `slide ${slides.slideLabel(slide)} has no shape ${JSON.stringify(ref)}; its shapes are: ${listing.join(', ') || 'none'}`
   )
 }
 
@@ -453,8 +467,10 @@ export class Presentation {
 
   read(opts: ReadOptions = {}): SlideInfo[] {
     const all = slides.entries(this.deck)
-    const wanted = pick(all.length, opts)
-    return all.flatMap((entry, index) => (wanted(index) ? [this.slideInfo(entry, index)] : []))
+    const wanted = pick(all.length, page.readOptions(this.deck, opts))
+    return all.flatMap((entry, index) =>
+      wanted(index) ? [this.slideInfo(entry, index, opts.detail)] : []
+    )
   }
 
   setText(target: ShapeRef, value: TextInput, opts: FitOptions = {}): TextResult {
@@ -581,13 +597,14 @@ export class Presentation {
       this.addPicture(at, opts.image)
     }
 
-    const shapes = shapesOf(this.package.xml(slides.slideAt(this.deck, at).part))
+    const { id, part } = slides.slideAt(this.deck, at)
+    const shapes = shapesOf(this.package.xml(part)).map(describe)
 
-    return { index: at, layout: layoutName(layoutDoc), shapes: shapes.map(describe) }
+    return { index: at, id: Number(id), layout: layoutName(layoutDoc), shapes }
   }
 
   addPicture(
-    slide: number,
+    slide: SlideRef,
     bytes: Uint8Array,
     input: units.WithLengths<PictureOptions, units.BoxKey> = {}
   ): PlacedShape {
@@ -615,7 +632,7 @@ export class Presentation {
   }
 
   addTextBox(
-    slide: number,
+    slide: SlideRef,
     input: units.WithLengths<TextBoxOptions, units.BoxKey> = {}
   ): PlacedShape {
     const opts = units.box(input)
@@ -637,7 +654,7 @@ export class Presentation {
     return { id, ...box }
   }
 
-  addTable(slide: number, input: units.WithLengths<TableOptions, units.BoxKey>): PlacedShape {
+  addTable(slide: SlideRef, input: units.WithLengths<TableOptions, units.BoxKey>): PlacedShape {
     const opts = units.box(input)
     const entry = slides.slideAt(this.deck, slide)
     const doc = this.package.xml(entry.part)
@@ -657,7 +674,7 @@ export class Presentation {
     return { id, ...box }
   }
 
-  addChart(slide: number, input: units.WithLengths<ChartOptions, units.BoxKey>): PlacedShape {
+  addChart(slide: SlideRef, input: units.WithLengths<ChartOptions, units.BoxKey>): PlacedShape {
     const spec = units.box(input)
     const entry = slides.slideAt(this.deck, slide)
     const box = this.box(spec)
@@ -689,7 +706,7 @@ export class Presentation {
     return chart.setChartTitle(ref, text.normalizeParagraphs(value))
   }
 
-  setBackground(slide: number, color: string | null): Changed {
+  setBackground(slide: SlideRef, color: string | null): Changed {
     const entry = slides.slideAt(this.deck, slide)
     setBackground(this.package.xml(entry.part), color)
     this.package.touch(entry.part)
@@ -778,16 +795,16 @@ export class Presentation {
     return result
   }
 
-  setNotes(slide: number, value: TextInput): Changed {
+  setNotes(slide: SlideRef, value: TextInput): Changed {
     const entry = slides.slideAt(this.deck, slide)
     notes.writeNotes(this.deck, entry.part, value)
     return { changed: true }
   }
 
-  deleteSlide(slide: number): Remaining {
+  deleteSlide(slide: SlideRef): Remaining {
     const entry = slides.slideAt(this.deck, slide)
     const pkg = this.package
-    this.refuseLinked(entry, slide)
+    this.refuseLinked(entry, slides.slideIndex(this.deck, slide))
     const top = pkg.root(this.main)
     for (const sld of xml.descendants(top, P, 'sld')) {
       if (sld.getAttributeNS(R, 'id') === entry.rId) {
@@ -810,10 +827,10 @@ export class Presentation {
     return { slides: this.slideCount }
   }
 
-  moveSlide(slide: number, opts: MoveOptions): Moved {
-    slides.slideAt(this.deck, slide)
+  moveSlide(slide: SlideRef, opts: MoveOptions): Moved {
+    const index = slides.slideIndex(this.deck, slide)
     const all = slides.entries(this.deck)
-    const entry = all[slide]
+    const entry = all[index]
     const to = isRecord(opts) ? opts.to : undefined
     if (typeof to !== 'number' || !Number.isInteger(to) || to < 0 || to >= all.length) {
       throw new DocsError(
@@ -822,7 +839,7 @@ export class Presentation {
       )
     }
 
-    if (slide === to) {
+    if (index === to) {
       return { moved: false }
     }
 
@@ -835,6 +852,40 @@ export class Presentation {
     this.slidesChanged = true
 
     return { moved: true }
+  }
+
+  find(opts: FindOptions = {}): FoundShape[] {
+    return finder.find(this.deck, opts)
+  }
+
+  outline(): SlideOutline[] {
+    return finder.outline(this.deck)
+  }
+
+  readPage(opts: PageOptions = {}): SlidePage {
+    return page.readPage(this.deck, opts, (entry, index) =>
+      this.slideInfo(entry, index, opts.detail)
+    )
+  }
+
+  replaceText(opts: ReplaceTextOptions): ReplacedText {
+    return textRanges.replaceText(this.textContext, opts)
+  }
+
+  formatText(target: ShapeRef, search: Search, style: Style): FormattedText {
+    return textRanges.formatText(this.textContext, { target, search, style })
+  }
+
+  link(target: ShapeRef, search: Search, url: string): LinkedText {
+    return textRanges.link(this.textContext, { target, search, url })
+  }
+
+  private get textContext(): DeckText {
+    return {
+      deck: this.deck,
+      locate: (target) => this.locate(target),
+      touch: (part) => this.touchSlide(part)
+    }
   }
 
   save(opts?: SaveOptions): Uint8Array {
@@ -868,13 +919,14 @@ export class Presentation {
     return tree
   }
 
-  private slideInfo(entry: slides.SlideEntry, index: number): SlideInfo {
+  private slideInfo(entry: slides.SlideEntry, index: number, detail?: 'runs'): SlideInfo {
     const doc = this.package.xml(entry.part)
     const layout = slides.layoutOf(this.package, entry.part)
     const info: SlideInfo = {
       index,
+      id: Number(entry.id),
       layout: layout ? layoutName(this.package.xml(layout)) : null,
-      shapes: shapesOf(doc).map((shape) => this.shapeInfo(entry.part, shape))
+      shapes: shapesOf(doc).map((shape) => this.shapeInfo(entry.part, shape, detail))
     }
     const noteText = notes.notesText(this.deck, entry.part)
     if (noteText) {
@@ -884,8 +936,12 @@ export class Presentation {
     return info
   }
 
-  private shapeInfo(part: string, shape: ShapeEntry): ShapeInfo {
+  private shapeInfo(part: string, shape: ShapeEntry, detail?: 'runs'): ShapeInfo {
     const out = describe(shape)
+    if (detail === 'runs') {
+      page.addRuns({ pkg: this.package, part }, shape, out)
+    }
+
     const box = inherit.box({ pkg: this.package, slide: part, el: shape.el })
     if (box) {
       out.box = box
