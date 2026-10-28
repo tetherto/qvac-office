@@ -86,6 +86,44 @@ A sheet is its name or 0-based index; cells use A1 references and rows are numbe
 - `addImage(sheet, image, opts)`, `addChart(sheet, spec)`, `removeMacros()`
 - `xlsx.create({ sheets, title })`
 
+## Tools
+
+`@qvac/office/tools` is the surface an LLM calls. Each operation is a method of the format
+class, described by a JSON Schema whose fields are the method's arguments, with option
+objects flattened beside the target.
+
+```js
+import { tools } from '@qvac/office'
+
+const definition = tools.tool('docx', { name: 'word' })
+const { doc, results } = tools.apply(document, [
+  { op: 'appendParagraphs', paragraphs: [{ text: 'Plan', style: 'Heading 1' }] },
+  { op: 'addImage', at: 1, image: 'data:image/png;base64,...', width: '3in' }
+])
+```
+
+- `tool(format, { name, only })` is one tool definition whose input is `{ ops: [...] }`.
+  `operations(format)` lists each operation with its own schema.
+- `apply(doc, ops, { resolveImage })` runs the ops in order on a copy and returns it with
+  each op's result. If one fails, none apply, and the `DocsError` names the op as
+  `details.index` and `details.op`.
+- Images arrive as base64, a `data:` URL or bytes. `resolveImage` maps anything else, such as
+  an attachment id.
+- `detect(bytes)` and `open(bytes)` work out the format from the file.
+- A length is EMU or a string such as `"2in"`, `"5cm"`, `"40mm"`, `"72pt"` or `"96px"`.
+- Errors serialise to `{ code, message, details }`. `details` carries fields such as `field`,
+  `expected`, `got` and `candidates` when the next call can use them.
+
+## Diff and render
+
+- `diff.diff(before, after, { limit, excerpt })` takes two versions of a document, as bytes
+  or open documents. It returns what was added, removed and changed, by block, slide and
+  shape, or cell.
+- `@qvac/office/render` draws pages to PNG on Bare with
+  `render(doc, { pages, scale })`. `toPdf(doc)` returns the PDF.
+  - They need the optional peers `bare-x-to-pdf`, `bare-pdfium` and `bare-png`.
+  - Without them, or on Node, they fail with `RENDER_UNAVAILABLE`.
+
 ## Guarantees
 
 - Parts an edit does not touch are saved byte for byte.
