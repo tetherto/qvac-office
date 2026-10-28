@@ -2,6 +2,12 @@ import { CODES, type DocsErrorCode } from './codes.ts'
 
 export type ErrorDetails = Readonly<Record<string, unknown>>
 
+export interface DocsErrorJSON {
+  code: DocsErrorCode
+  message: string
+  details?: ErrorDetails
+}
+
 export class DocsError extends Error {
   code: DocsErrorCode
   details?: ErrorDetails
@@ -19,7 +25,7 @@ export class DocsError extends Error {
     return CODES
   }
 
-  toJSON(): { code: DocsErrorCode; message: string; details?: ErrorDetails } {
+  toJSON(): DocsErrorJSON {
     return this.details
       ? { code: this.code, message: this.message, details: this.details }
       : { code: this.code, message: this.message }

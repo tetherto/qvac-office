@@ -353,7 +353,8 @@ function checkBox(box: unknown): Partial<Box> {
   }
 
   const keys = Object.keys(box)
-  if (!keys.length || keys.some((k) => !['x', 'y', 'width', 'height'].includes(k))) {
+  const empty = BOX_KEYS.every((key) => box[key] === undefined)
+  if (empty || keys.some((k) => !['x', 'y', 'width', 'height'].includes(k))) {
     throw new DocsError('INVALID_BOX', 'box takes x, y, width and height in EMU')
   }
 
@@ -590,7 +591,7 @@ export class Presentation {
     bytes: Uint8Array,
     input: units.WithLengths<PictureOptions, units.BoxKey> = {}
   ): PlacedShape {
-    const opts = units.lengths(input, units.BOX_KEYS) as PictureOptions
+    const opts = units.box(input)
     const entry = slides.slideAt(this.deck, slide)
     const area = this.pictureArea(entry.part, opts)
     const box = this.pictureBox(probe(bytes), opts, area.box)
@@ -617,7 +618,7 @@ export class Presentation {
     slide: number,
     input: units.WithLengths<TextBoxOptions, units.BoxKey> = {}
   ): PlacedShape {
-    const opts = units.lengths(input, units.BOX_KEYS) as TextBoxOptions
+    const opts = units.box(input)
     const entry = slides.slideAt(this.deck, slide)
     const doc = this.package.xml(entry.part)
     const id = nextShapeId(doc)
@@ -637,7 +638,7 @@ export class Presentation {
   }
 
   addTable(slide: number, input: units.WithLengths<TableOptions, units.BoxKey>): PlacedShape {
-    const opts = units.lengths(input, units.BOX_KEYS) as TableOptions
+    const opts = units.box(input)
     const entry = slides.slideAt(this.deck, slide)
     const doc = this.package.xml(entry.part)
     const id = nextShapeId(doc)
@@ -657,7 +658,7 @@ export class Presentation {
   }
 
   addChart(slide: number, input: units.WithLengths<ChartOptions, units.BoxKey>): PlacedShape {
-    const spec = units.lengths(input, units.BOX_KEYS) as ChartOptions
+    const spec = units.box(input)
     const entry = slides.slideAt(this.deck, slide)
     const box = this.box(spec)
     const part = this.package.freeName('/ppt/charts/chart%d.xml')
@@ -721,7 +722,7 @@ export class Presentation {
   }
 
   setBox(target: ShapeRef, raw: units.WithLengths<Partial<Box>, units.BoxKey>): PlacedShape {
-    const input = units.lengths(raw, units.BOX_KEYS) as Partial<Box>
+    const input = units.box(raw)
     const { entry, found } = this.locate(target)
     const box = checkBox(input)
     const current = inherit.box({ pkg: this.package, slide: entry.part, el: found.el })

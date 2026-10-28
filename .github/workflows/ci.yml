@@ -23,3 +23,13 @@ jobs:
     steps:
       - uses: holepunchto/actions/bare-base@v1
       - run: npm test
+  validate:
+    runs-on: ubuntu-latest
+    name: Open XML schemas
+    steps:
+      - uses: holepunchto/actions/node-base@v1
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: node scripts/validate/outputs.ts validate-out
+      - run: dotnet run --project scripts/validate -- validate-out

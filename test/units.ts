@@ -9,20 +9,31 @@ test('lengths take EMU or a unit string', (t) => {
   t.is(units.length('72pt'), 914400)
   t.is(units.length('96px'), 914400)
   t.is(units.length(12345), 12345)
-  t.alike(units.lengths({ x: '1in', name: 'a' }, units.BOX_KEYS), { x: 914400, name: 'a' })
+  t.alike(units.box({ x: '1in', width: 5 }), {
+    x: 914400,
+    y: undefined,
+    width: 5,
+    height: undefined
+  })
+  t.alike(units.size({ height: '1cm' }), { width: undefined, height: 360000 })
 })
 
-test('a malformed length names the field and what it expected', (t) => {
+function failure(fn: () => unknown): DocsError | null {
   try {
-    units.length('two inches', 'width')
-    t.fail('accepted a malformed length')
+    fn()
   } catch (err) {
-    t.ok(err instanceof DocsError)
-    const error = err as DocsError
-    t.is(error.code, 'INVALID_BOX')
-    t.is(error.details?.field, 'width')
-    t.is(error.toJSON().details?.got, 'two inches')
+    return err instanceof DocsError ? err : null
   }
+
+  return null
+}
+
+test('a malformed length names the field and what it expected', (t) => {
+  const words = failure(() => units.length('two inches', 'width'))
+  t.is(words?.code, 'INVALID_BOX')
+  t.is(words?.details?.field, 'width')
+  t.is(words?.toJSON().details?.got, 'two inches')
+  t.is(failure(() => units.length(true, 'x'))?.details?.field, 'x')
 })
 
 test('every format places shapes with unit strings', (t) => {

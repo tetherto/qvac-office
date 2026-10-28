@@ -928,7 +928,7 @@ export class Document {
     bytes: Uint8Array,
     input: units.WithLengths<ImageOptions, units.SizeKey> = {}
   ): Placed {
-    const opts = units.lengths(input, units.SIZE_KEYS) as ImageOptions
+    const opts = units.size(input)
     const blocks = this.blocks()
     this.position(at, blocks.length)
     const size = this.imageSize(probe(bytes), opts)
@@ -952,7 +952,7 @@ export class Document {
   }
 
   addChart(at: number, input: units.WithLengths<DocChartSpec, units.SizeKey>): Placed {
-    const spec = units.lengths(input, units.SIZE_KEYS) as DocChartSpec
+    const spec = units.size(input)
     const blocks = this.blocks()
     this.position(at, blocks.length)
     const width = spec.width ?? this.textWidth() * EMU_PER_TWIP

@@ -2,7 +2,6 @@ import { Package, type OpenOptions } from '../opc/package.ts'
 import * as xml from '../xml.ts'
 import * as media from '../opc/media.ts'
 import { probe } from '../image.ts'
-import { points } from '../units.ts'
 import * as refs from './refs.ts'
 import * as formula from './formula.ts'
 import {
@@ -752,7 +751,7 @@ export class Workbook {
     bytes: Uint8Array,
     input: units.WithLengths<ImageOptions, units.SizeKey> = {}
   ): Placed {
-    const opts = units.lengths(input, units.SIZE_KEYS) as ImageOptions
+    const opts = units.size(input)
     const target = this.sheet(sheet)
     const info = probe(bytes)
     const o: Record<string, unknown> = isRecord(opts) ? opts : {}
@@ -773,7 +772,7 @@ export class Workbook {
   }
 
   addChart(sheet: SheetRef, raw: units.WithLengths<SheetChartSpec, units.SizeKey>): Placed {
-    const input = units.lengths(raw, units.SIZE_KEYS) as SheetChartSpec
+    const input = units.size(raw)
     const target = this.sheet(sheet)
     const spec: Record<string, unknown> = isRecord(input) ? input : {}
     if (typeof spec.categories !== 'string') {
@@ -1283,7 +1282,7 @@ export class Workbook {
     }
 
     const format = xml.child(sheet.root, X, 'sheetFormatPr')
-    const rowHeight = points(Number(format?.getAttribute('defaultRowHeight') ?? 15))
+    const rowHeight = units.points(Number(format?.getAttribute('defaultRowHeight') ?? 15))
 
     return xml.children(this.package.root(drawing), XDR).flatMap((anchor) => {
       const from = xml.child(anchor, XDR, 'from')

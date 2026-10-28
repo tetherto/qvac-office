@@ -58,7 +58,9 @@ export const CODES = {
   SHEET_HAS_DEPENDENTS:
     'the sheet has pivot tables, comments or other parts that rows or columns cannot move through yet',
   SHEET_IS_REFERENCED: 'other formulas, names or charts refer to the sheet',
-  LAST_SHEET: 'a workbook needs at least one visible sheet'
+  LAST_SHEET: 'a workbook needs at least one visible sheet',
+  UNKNOWN_OPERATION: 'the format has no operation with that name',
+  RENDER_UNAVAILABLE: 'rendering needs Bare with bare-x-to-pdf, bare-pdfium and bare-png'
 } as const
 
 export type DocsErrorCode = keyof typeof CODES

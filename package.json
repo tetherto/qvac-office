@@ -20,6 +20,18 @@
     "./xlsx": {
       "types": "./dist/xlsx/index.d.ts",
       "default": "./dist/xlsx/index.js"
+    },
+    "./tools": {
+      "types": "./dist/tools/index.d.ts",
+      "default": "./dist/tools/index.js"
+    },
+    "./diff": {
+      "types": "./dist/diff/index.d.ts",
+      "default": "./dist/diff/index.js"
+    },
+    "./render": {
+      "types": "./dist/render/index.d.ts",
+      "default": "./dist/render/index.js"
     }
   },
   "imports": {
@@ -59,7 +71,10 @@
     "b4a": "^1.7.3",
     "bare-fs": "^4.5.0",
     "bare-path": "^3.0.0",
+    "bare-pdfium": "^1.7.1",
+    "bare-png": "^1.1.0",
     "bare-process": "^4.2.0",
+    "bare-x-to-pdf": "^0.4.0",
     "brittle": "^4.2.0",
     "lunte": "^1.8.6",
     "lunte-plugin-qvac": "^0.2.0",
@@ -86,5 +101,21 @@
   "bugs": {
     "url": "https://github.com/tetherto/qvac-office/issues"
   },
-  "homepage": "https://github.com/tetherto/qvac-office"
+  "homepage": "https://github.com/tetherto/qvac-office",
+  "peerDependencies": {
+    "bare-pdfium": "^1.7.1",
+    "bare-png": "^1.0.9",
+    "bare-x-to-pdf": ">=0.4.0"
+  },
+  "peerDependenciesMeta": {
+    "bare-pdfium": {
+      "optional": true
+    },
+    "bare-png": {
+      "optional": true
+    },
+    "bare-x-to-pdf": {
+      "optional": true
+    }
+  }
 }
