@@ -200,3 +200,13 @@ test('link accepts only http, https and mailto URLs', (t) => {
 
   t.is(doc.changed, false)
 })
+
+test('deleted tracked text takes no offsets, so matches after it land in place', (t) => {
+  const doc = withBody(
+    `<w:p>${run('keep')}<w:del w:id="1" w:author="A" w:date="2026-01-01T00:00:00Z"><w:r><w:tab/><w:delText>gone</w:delText></w:r></w:del>${run(' more')}</w:p>`
+  )
+  t.alike(doc.replaceText({ find: 'more', replace: 'less' }), { replaced: 1, blocks: [0] })
+  const block = para(reopen(doc).read({ detail: 'runs' }).blocks[0])
+  t.is(block.text, 'keep less')
+  t.is(block.runs?.map((r) => r.text).join(''), 'keep less')
+})

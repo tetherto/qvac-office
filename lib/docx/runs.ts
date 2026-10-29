@@ -17,6 +17,7 @@ export interface RunPlace {
   link: Element | null
   tracked: boolean
   field: boolean
+  deleted: boolean
 }
 
 export interface Segment {
@@ -44,6 +45,7 @@ const CONTAINERS = new Set([
 ])
 const TRACKED_CONTAINERS = new Set(['ins', 'del', 'moveTo', 'moveFrom'])
 const FIELD_CONTAINERS = new Set(['fldSimple'])
+const DELETED_CONTAINERS = new Set(['del', 'moveFrom'])
 const OFF = new Set(['0', 'false', 'off'])
 
 function wVal(el: Element | null): string {
@@ -78,7 +80,13 @@ function hasFormatChange(run: Element): boolean {
 }
 
 function placeOf(run: Element, p: Element, depth: number): RunPlace {
-  const place: RunPlace = { run, link: null, tracked: hasFormatChange(run), field: depth > 0 }
+  const place: RunPlace = {
+    run,
+    link: null,
+    tracked: hasFormatChange(run),
+    field: depth > 0,
+    deleted: false
+  }
   for (let el = run.parentNode; el && el !== p; el = el.parentNode) {
     const name = xml.isElement(el, W) ? (el.localName ?? '') : ''
     if (name === 'hyperlink' && xml.isElement(el)) {
@@ -87,6 +95,7 @@ function placeOf(run: Element, p: Element, depth: number): RunPlace {
 
     place.tracked = place.tracked || TRACKED_CONTAINERS.has(name)
     place.field = place.field || FIELD_CONTAINERS.has(name)
+    place.deleted = place.deleted || DELETED_CONTAINERS.has(name)
   }
 
   return place
@@ -127,7 +136,7 @@ export function places(p: Element): RunPlace[] {
 export function segments(list: RunPlace[]): Segment[] {
   const out: Segment[] = []
   let at = 0
-  for (const place of list) {
+  for (const place of list.filter((item) => !item.deleted)) {
     for (const node of xml.children(place.run, W)) {
       const length = nodeText(node).length
       if (length > 0) {
@@ -195,7 +204,8 @@ function sameFormat(a: RunView, b: RunView): boolean {
 
 export function readRuns(p: Element, target: LinkTarget): RunView[] {
   const out: RunView[] = []
-  for (const view of places(p).map((place) => viewOf(place, target))) {
+  const live = places(p).filter((place) => !place.deleted)
+  for (const view of live.map((place) => viewOf(place, target))) {
     if (!view.text) continue
     const last = out[out.length - 1]
     if (last && sameFormat(last, view)) {
