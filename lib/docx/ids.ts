@@ -5,6 +5,10 @@ import type { Element } from '../xml.ts'
 
 export type BlockRef = number | { id: string }
 
+export interface IdRef {
+  id: string
+}
+
 export const W14 = 'http://schemas.microsoft.com/office/word/2010/wordml'
 const MC = 'http://schemas.openxmlformats.org/markup-compatibility/2006'
 const XMLNS = 'http://www.w3.org/2000/xmlns/'
@@ -86,20 +90,25 @@ function containing(blocks: Element[], id: string): number {
   return blocks.findIndex((block) => xml.descendants(block, W, 'p').some((p) => paraId(p) === id))
 }
 
+function checkedId(value: unknown): string {
+  const id = typeof value === 'string' && HEX_ID.test(value) ? value.toUpperCase() : null
+  if (!id) {
+    throw new DocsError(
+      'BLOCK_NOT_FOUND',
+      `a block id is 8 hex digits (w14:paraId), got ${JSON.stringify(value)}`,
+      { field: 'id', expected: '8 hex digits', got: value }
+    )
+  }
+
+  return id
+}
+
 export function resolve(blocks: Element[], ref: BlockRef): number {
   if (!isRecord(ref)) {
     return ref
   }
 
-  const id = typeof ref.id === 'string' && HEX_ID.test(ref.id) ? ref.id.toUpperCase() : null
-  if (!id) {
-    throw new DocsError(
-      'BLOCK_NOT_FOUND',
-      `a block id is 8 hex digits (w14:paraId), got ${JSON.stringify(ref.id)}`,
-      { field: 'id', expected: '8 hex digits', got: ref.id }
-    )
-  }
-
+  const id = checkedId(ref.id)
   const index = blocks.findIndex((block) => blockId(block) === id)
   if (index !== -1) {
     return index
@@ -117,6 +126,28 @@ export function resolve(blocks: Element[], ref: BlockRef): number {
   throw new DocsError(
     'BLOCK_NOT_FOUND',
     `no block has id ${id}; read() or find() lists the current ids`,
+    { field: 'id', got: id }
+  )
+}
+
+export interface Located {
+  index: number
+  p: Element
+}
+
+export function locate(blocks: Element[], ref: IdRef): Located {
+  const id = checkedId(ref.id)
+  for (const [index, block] of blocks.entries()) {
+    const list = block.localName === 'p' ? [block] : xml.descendants(block, W, 'p')
+    const p = list.find((el) => paraId(el) === id)
+    if (p) {
+      return { index, p }
+    }
+  }
+
+  throw new DocsError(
+    'BLOCK_NOT_FOUND',
+    `no paragraph has id ${id}; read() or find() lists the current ids`,
     { field: 'id', got: id }
   )
 }

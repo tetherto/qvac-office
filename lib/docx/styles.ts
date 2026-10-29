@@ -193,6 +193,26 @@ export class Styles {
     return { style: style.name }
   }
 
+  nextOf(styleId: string | null): string | null {
+    const style = styleId ? this.byId(styleId) : this.defaultParagraph()
+    const next = style ? wVal(xml.child(style.el, W, 'next')) : null
+    return next && this.byId(next) ? next : null
+  }
+
+  runLayers(paragraphStyle: string | null, characterStyle: string | null): Element[] {
+    const doc = this.doc
+    const defaults = doc ? xml.child(xml.root(doc), W, 'docDefaults') : null
+    const base = defaults ? xml.child(defaults, W, 'rPrDefault') : null
+    const styles = [
+      ...this.chain(paragraphStyle ?? this.defaultParagraph()?.id ?? null).reverse(),
+      ...this.chain(characterStyle).reverse()
+    ]
+
+    return [base, ...styles.map((style) => style.el)]
+      .map((el) => (el ? xml.child(el, W, 'rPr') : null))
+      .filter((rPr) => rPr !== null)
+  }
+
   private chain(styleId: string | null): StyleInfo[] {
     const out: StyleInfo[] = []
     const seen = new Set<string>()

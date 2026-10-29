@@ -13,7 +13,7 @@ export interface TextQuery {
 }
 
 export type Range = [number, number]
-export type Rule = 'replace' | 'format' | 'link'
+export type Rule = 'replace' | 'format' | 'link' | 'delete'
 export type Target = [number, Element]
 
 export interface Planned {
@@ -135,7 +135,8 @@ function refusal(span: RunPlace[], rule: Rule): Refusal | null {
     return { code: 'ALREADY_LINKED', reason: 'is already inside a hyperlink' }
   }
 
-  if (rule !== 'format' && new Set(span.map((place) => place.run.parentNode)).size > 1) {
+  const bounded = rule === 'replace' || rule === 'link'
+  if (bounded && new Set(span.map((place) => place.run.parentNode)).size > 1) {
     return {
       code: 'RANGE_BOUNDARY',
       reason: 'crosses the edge of a hyperlink or content control; match text on one side of it'

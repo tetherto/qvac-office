@@ -1,5 +1,6 @@
 import * as xml from '../xml.ts'
 import type { Element } from '../xml.ts'
+import type { RunFormat } from './text.ts'
 
 export interface RunView {
   text: string
@@ -163,6 +164,41 @@ function fontOf(rPr: Element | null): string | undefined {
   return (
     (fonts && (fonts.getAttributeNS(W, 'ascii') || fonts.getAttributeNS(W, 'hAnsi'))) || undefined
   )
+}
+
+export function ownFormat(rPr: Element): RunFormat {
+  const out: RunFormat = {}
+  const toggles = [
+    ['bold', 'b'],
+    ['italic', 'i']
+  ] as const
+  for (const [key, local] of toggles) {
+    if (child(rPr, local)) {
+      out[key] = toggle(rPr, local)
+    }
+  }
+
+  const underline = child(rPr, 'u')
+  if (underline) {
+    out.underline = wVal(underline) !== 'none'
+  }
+
+  const size = Number(wVal(child(rPr, 'sz'))) / 2
+  if (size > 0) {
+    out.size = size
+  }
+
+  const color = wVal(child(rPr, 'color'))
+  if (color) {
+    out.color = color
+  }
+
+  const font = fontOf(rPr)
+  if (font) {
+    out.font = font
+  }
+
+  return out
 }
 
 function formatOf(rPr: Element | null): Omit<RunView, 'text'> {

@@ -42,7 +42,7 @@ const R = xml.ns.r
 const XML_NS = 'http://www.w3.org/XML/1998/namespace'
 const LINK_COLOR = '0563C1'
 
-function setT(t: Element, value: string): void {
+export function setT(t: Element, value: string): void {
   xml.setText(t, value)
   if (/^\s|\s$/.test(value)) {
     t.setAttributeNS(XML_NS, 'xml:space', 'preserve')
@@ -63,7 +63,7 @@ function piece(doc: XmlDocument, value: string): Element {
   return value === '\t' ? text.wEl(doc, 'tab') : tEl(doc, value)
 }
 
-function pieces(doc: XmlDocument, value: string): Element[] {
+export function pieces(doc: XmlDocument, value: string): Element[] {
   return value
     .replace(/\r\n?/g, '\n')
     .split(/(\n|\t)/)
@@ -129,7 +129,7 @@ function local(seg: Segment, [start, end]: Range): Range {
   return [Math.max(start, seg.start) - seg.start, Math.min(end, seg.end) - seg.start]
 }
 
-function replaceIn(p: Element, ranges: Range[], replacement: string): void {
+export function replaceIn(p: Element, ranges: Range[], replacement: string): void {
   const segs = segments(places(p))
   for (const range of [...ranges].reverse()) {
     const touched = match.overlapping(segs, range)
@@ -142,7 +142,7 @@ function replaceIn(p: Element, ranges: Range[], replacement: string): void {
   }
 }
 
-function shell(run: Element): Element {
+export function shell(run: Element): Element {
   const copy = text.wEl(xml.owner(run), 'r')
   for (const attr of Array.from(run.attributes)) {
     copy.setAttributeNS(attr.namespaceURI, attr.name, attr.value)
@@ -156,7 +156,7 @@ function shell(run: Element): Element {
   return copy
 }
 
-function siblingsFrom(first: Node, last: Node | null): Node[] {
+export function siblingsFrom(first: Node, last: Node | null): Node[] {
   const out: Node[] = []
   for (let n: Node | null = first; n; n = n.nextSibling) {
     out.push(n)
@@ -168,7 +168,7 @@ function siblingsFrom(first: Node, last: Node | null): Node[] {
   return out
 }
 
-function splitRunBefore(node: Element): void {
+export function splitRunBefore(node: Element): void {
   const run = node.parentNode
   if (!xml.isElement(run) || xml.children(run).find((el) => el.localName !== 'rPr') === node) {
     return
@@ -182,7 +182,7 @@ function splitRunBefore(node: Element): void {
   run.parentNode?.insertBefore(right, run.nextSibling)
 }
 
-function splitText(t: Element, at: number): Element {
+export function splitText(t: Element, at: number): Element {
   const current = xml.text(t)
   const tail = tEl(xml.owner(t), current.slice(at))
   setT(t, current.slice(0, at))
@@ -190,7 +190,7 @@ function splitText(t: Element, at: number): Element {
   return tail
 }
 
-function splitAt(p: Element, at: number): void {
+export function splitAt(p: Element, at: number): void {
   const segs = segments(places(p))
   const inside = segs.find((seg) => seg.start < at && at < seg.end)
   if (inside) {
@@ -211,7 +211,7 @@ function isolate(p: Element, [start, end]: Range): Element[] {
   return [...new Set(inside.map((seg) => seg.place.run))]
 }
 
-function formatIn(p: Element, ranges: Range[], format: RunFormat): void {
+export function formatIn(p: Element, ranges: Range[], format: RunFormat): void {
   for (const run of ranges.flatMap((range) => isolate(p, range))) {
     text.applyRunFormat(text.ensure(run, 'rPr'), format)
   }

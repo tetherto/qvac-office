@@ -39,6 +39,7 @@ import * as footnotes from './footnotes.ts'
 import * as page from './page.ts'
 import * as toc from './toc.ts'
 import * as revisions from './revisions.ts'
+import * as offsets from './offsets.ts'
 import * as templates from '../opc/templates.ts'
 import type { CommentAdded, CommentDeleted, CommentResolved, ResolveOptions } from './comments.ts'
 import type { CommentOptions } from './comments.ts'
@@ -48,6 +49,8 @@ import type { PageOptions, PageResult, PageSetup } from './page.ts'
 import type { TocOptions } from './toc.ts'
 import type { ChangeCounts } from './revisions.ts'
 import type { DocumentConversion } from '../opc/templates.ts'
+import type { CaretFormat, FormatRangeOptions, InsertTextOptions } from './offsets.ts'
+import type { OffsetOptions, RangeFormatted, TextEdit, TextRange } from './offsets.ts'
 
 export type { Alignment, Format, ParagraphSpec, Removed, Run }
 export type { CreateOptions } from './template.ts'
@@ -56,6 +59,8 @@ export type { CommentAdded, CommentDeleted, CommentOptions, CommentResolved, Res
 export type { FootnoteAdded, FootnoteOptions, MarkdownOptions, MarkdownResult }
 export type { PageOptions, PageResult, PageSetup, TocOptions, ChangeCounts, DocumentConversion }
 export type { Orientation, PageMargins, PageName, PageSize } from './page.ts'
+export type { CaretFormat, FormatRangeOptions, InsertTextOptions, OffsetOptions }
+export type { RangeFormatted, TextEdit, TextRange }
 export type TextSpec = string | ParagraphSpec
 export type Paragraphs = TextSpec | TextSpec[]
 
@@ -175,6 +180,27 @@ export interface CellRef {
   table: BlockRef
   row: number
   column: number
+}
+
+export interface CellParagraphRef extends CellRef {
+  paragraph?: number
+}
+
+export type ParagraphRef = BlockRef | CellParagraphRef
+
+export interface ParagraphAt {
+  block: number
+  id: string
+}
+
+export interface SplitResult {
+  first: ParagraphAt
+  second: ParagraphAt
+}
+
+export interface MergeResult extends ParagraphAt {
+  offset: number
+  length: number
 }
 
 export interface RowRef {
@@ -1074,6 +1100,41 @@ export class Document {
     )
   }
 
+  insertText(ref: ParagraphRef, opts: InsertTextOptions): TextEdit {
+    return offsets.insertText(this.located(ref), opts, this.editing())
+  }
+
+  deleteText(ref: ParagraphRef, opts: TextRange): TextEdit {
+    return offsets.deleteText(this.located(ref), opts, this.editing())
+  }
+
+  splitParagraph(ref: ParagraphRef, opts: OffsetOptions): SplitResult {
+    const para = this.located(ref)
+    const next = offsets.splitParagraph(para, opts, this.editing())
+    const id = this.ensureId(para.p)
+    const [nextId] = this.stamp([next])
+    const shift = para.p.parentNode === this.body() ? 1 : 0
+    return {
+      first: { block: para.block, id },
+      second: { block: para.block + shift, id: nextId }
+    }
+  }
+
+  mergeParagraphs(ref: ParagraphRef): MergeResult {
+    const para = this.located(ref)
+    const offset = offsets.mergeParagraphs(para, this.following(para), this.editing())
+    const id = this.ensureId(para.p)
+    return { block: para.block, id, offset, length: text.paragraphText(para.p).length }
+  }
+
+  formatRange(ref: ParagraphRef, opts: FormatRangeOptions): RangeFormatted {
+    return offsets.formatRange(this.located(ref), opts, this.editing())
+  }
+
+  runFormat(ref: ParagraphRef, opts: OffsetOptions): CaretFormat {
+    return offsets.runFormat(this.located(ref), opts, this.editing())
+  }
+
   find(query: finder.FindQuery): Found[] {
     return finder.find(this.blocks(), (el) => this.summary(el), query)
   }
@@ -1275,6 +1336,72 @@ export class Document {
     }
 
     return checkMerge(tc, ref)
+  }
+
+  private located(ref: ParagraphRef): offsets.Paragraph {
+    if (isCellRef(ref)) {
+      return this.cellParagraph(ref)
+    }
+
+    if (isRecord(ref)) {
+      const { index, p } = ids.locate(this.blocks(), ref)
+      return { block: index, p: editable(p, index) }
+    }
+
+    const index = this.indexOf(ref)
+
+    return { block: index, p: this.paragraph(index) }
+  }
+
+  private cellParagraph(ref: CellParagraphRef): offsets.Paragraph {
+    const list = unwrapped(this.cell(ref), 'p')
+    const at = ref.paragraph ?? 0
+    const p = Number.isInteger(at) && at >= 0 ? list[at] : undefined
+    if (!p) {
+      throw new DocsError(
+        'PARAGRAPH_NOT_FOUND',
+        `paragraph ${at} does not exist; the cell has ${list.length} (0 to ${list.length - 1})`,
+        { field: 'paragraph', got: at, expected: `0 to ${list.length - 1}` }
+      )
+    }
+
+    return { block: this.indexOf(ref.table), p }
+  }
+
+  private following(para: offsets.Paragraph): Element {
+    for (let n = para.p.nextSibling; n; n = n.nextSibling) {
+      if (!xml.isElement(n, W) || !CELL_BLOCKS.has(n.localName ?? '')) {
+        continue
+      }
+
+      if (n.localName === 'p') {
+        return n
+      }
+
+      throw new DocsError(
+        'NOT_PARAGRAPH',
+        `the block after paragraph ${para.block} is a ${n.localName === 'tbl' ? 'table' : 'content control'}, so it cannot be merged`,
+        { block: para.block, next: n.localName }
+      )
+    }
+
+    throw new DocsError(
+      'BLOCK_NOT_FOUND',
+      `no paragraph follows block ${para.block} in the same ${para.p.parentNode === this.body() ? 'body' : 'cell'}`,
+      { block: para.block }
+    )
+  }
+
+  private ensureId(p: Element): string {
+    return ids.paraId(p) ?? this.stamp([p])[0]
+  }
+
+  private editing(): offsets.Context {
+    return {
+      styles: this.styles,
+      target: (link) => this.linkTarget(link),
+      touch: () => this.touch()
+    }
   }
 
   private anchor(blocks: Element[], at: number): Anchor {
@@ -1940,6 +2067,35 @@ function tableRows(el: Element): string[][] {
         .map(text.blockText)
         .join('\n')
     )
+  )
+}
+
+function isCellRef(ref: ParagraphRef): ref is CellParagraphRef {
+  return isRecord(ref) && 'table' in ref
+}
+
+function editable(p: Element, index: number): Element {
+  let cell = false
+  for (let node = p.parentNode; xml.isElement(node, W); node = node.parentNode) {
+    const name = node.localName
+    if (name === 'txbxContent') {
+      break
+    }
+
+    cell = cell || name === 'tc'
+    if (name === 'body') {
+      if (cell || p.parentNode === node) {
+        return p
+      }
+
+      break
+    }
+  }
+
+  throw new DocsError(
+    'NOT_PARAGRAPH',
+    `that paragraph is inside a content control or text box in block ${index} and cannot be edited`,
+    { block: index }
   )
 }
 

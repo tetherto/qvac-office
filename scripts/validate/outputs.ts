@@ -166,6 +166,23 @@ function textEditedReport(bytes: Uint8Array): Uint8Array {
   return d.save()
 }
 
+function offsetEditedReport(bytes: Uint8Array): Uint8Array {
+  const d = docx.open(bytes)
+  d.insertText(3, { offset: 13, text: 'about\t' })
+  d.insertText(3, { offset: 0, text: 'Q3 ', format: { bold: true, color: '1F4E79' } })
+  d.deleteText(3, { start: 10, end: 30 })
+  d.formatRange(3, { start: 2, end: 14, format: { italic: true, underline: true } })
+  const { second } = d.splitParagraph(3, { offset: 8 })
+  d.insertText({ id: second.id }, { offset: 0, text: 'line\nbreak ' })
+  d.splitParagraph(2, { offset: 7 })
+  d.mergeParagraphs(5)
+  const cell = { table: 11, row: 1, column: 0 }
+  d.insertText(cell, { offset: 6, text: ' rate' })
+  d.splitParagraph(cell, { offset: 3 })
+
+  return d.save()
+}
+
 function contentDocument(): Uint8Array {
   const doc = docx.create({ title: 'Content' })
   doc.appendMarkdown(
@@ -331,6 +348,7 @@ pair('edited-basic.pptx', fixture('basic.pptx'), editedDeck)
 pair('edited-charts.pptx', fixture('charts.pptx'), editedCharts)
 pair('edited-report.docx', fixture('report.docx'), editedReport)
 pair('edited-report-text.docx', fixture('report.docx'), textEditedReport)
+pair('edited-report-offsets.docx', fixture('report.docx'), offsetEditedReport)
 write('content.docx', contentDocument())
 pair('content-report.docx', fixture('report.docx'), editedContent)
 pair('edited-sales.xlsx', fixture('sales.xlsx'), editedSales)

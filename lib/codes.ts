@@ -41,6 +41,7 @@ export const CODES = {
   TOO_MANY_SLIDES: 'the deck has run out of slide ids',
   BLOCK_NOT_FOUND: 'no block at that index',
   NOT_PARAGRAPH: 'the block is not a paragraph',
+  INVALID_OFFSET: 'a text offset is outside the paragraph or falls inside a character',
   NOT_HEADING: 'the block is not a heading',
   STYLE_NOT_FOUND: 'no style with that name',
   TRACKED_CHANGES: 'the paragraph has tracked changes that an edit would accept silently',

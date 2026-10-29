@@ -117,6 +117,24 @@ one, and inserts return them (`ids`, or `id` for a table, image or chart).
 - `formatText(block, { find, all, matchCase }, format)` — run formatting on just the match
 - `link(block, { find, matchCase }, url)` — wraps the first match in a hyperlink to an
   http, https or mailto URL
+- Offset editing, one call per keystroke. Offsets are UTF-16 code units into the paragraph's
+  `text` as `read()` returns it (a tab or line break is one; deleted tracked text is not
+  counted). A paragraph is a block index, `{ id }` (also a paragraph in a table cell) or
+  `{ table, row, column, paragraph }`:
+  - `insertText(p, { offset, text, format })` → `{ length, offset }` — takes the format of
+    the character before the offset (the first at 0); `format` puts the text in its own run
+    over it. `\n` is a line break, `\t` a tab. Text typed inside a hyperlink stays in it, at
+    its end goes after it, and never into a field result
+  - `deleteText(p, { start, end })` → `{ length, offset }` — across runs; drops emptied runs
+  - `formatRange(p, { start, end, format })` → `{ changed }`
+  - `runFormat(p, { offset })` → `{ bold, italic, underline, size, color, font, link }` — what
+    typing there would get, styles included
+  - `splitParagraph(p, { offset })` → `{ first, second }`, each `{ block, id }` — Enter; the
+    second paragraph takes the style's `w:next` when split at the end
+  - `mergeParagraphs(p)` → `{ block, id, offset, length }` — Backspace at the start of the
+    next paragraph; `offset` is the join
+  - They refuse tracked changes at the edit (`TRACKED_CHANGES`), field results
+    (`FIELD_TEXT`), and offsets past the text or inside a surrogate pair (`INVALID_OFFSET`)
 - `setText(index, text)` — refuses tracked changes, reports `removed` links, images,
   fields, content controls, equations, objects and page or column breaks
 - `insertParagraphs(at, paragraphs)`, `appendParagraphs(paragraphs)` — a paragraph takes

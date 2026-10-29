@@ -19,6 +19,7 @@ async function runTests() {
   await test.load(import.meta.resolve('./docx-content-revisions.ts'))
   await test.load(import.meta.resolve('./docx-parts.ts'))
   await test.load(import.meta.resolve('./docx-text-ids.ts'))
+  await test.load(import.meta.resolve('./docx-text-offsets.ts'))
   await test.load(import.meta.resolve('./docx-text-ranges.ts'))
   await test.load(import.meta.resolve('./docx-text-read.ts'))
   await test.load(import.meta.resolve('./docx.ts'))
