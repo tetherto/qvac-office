@@ -40,6 +40,42 @@ const FORMAT: Schema = {
   properties: { ...RUN_FORMAT, align: s.ALIGN },
   additionalProperties: false
 }
+const RUN_STYLE: Schema = {
+  type: 'object',
+  properties: RUN_FORMAT,
+  additionalProperties: false,
+  description: 'run formatting; false turns bold, italic or underline off'
+}
+const PARAGRAPH_REF: Schema = {
+  anyOf: [
+    { type: 'integer', minimum: 0, description: 'index of a paragraph block from 0' },
+    {
+      type: 'object',
+      properties: { id: s.STRING },
+      required: ['id'],
+      additionalProperties: false,
+      description: 'paragraph id from read() or an earlier result; may name a paragraph in a cell'
+    },
+    {
+      type: 'object',
+      properties: {
+        table: s.BLOCK,
+        row: s.INDEX,
+        column: s.INDEX,
+        paragraph: { type: 'integer', minimum: 0, description: 'paragraph in the cell, from 0' }
+      },
+      required: ['table', 'row', 'column'],
+      additionalProperties: false,
+      description: 'a paragraph in a table cell'
+    }
+  ]
+}
+const OFFSET: Schema = {
+  type: 'integer',
+  minimum: 0,
+  description:
+    "UTF-16 offset into the paragraph's text as read() returns it; tab and line break are 1"
+}
 const CHART = [
   req('type', s.CHART_TYPE),
   req('categories', s.CATEGORIES),
@@ -194,6 +230,43 @@ export const DOCX: OpTable = {
         opt('in', s.BLOCK)
       )
     ]
+  },
+  insertText: {
+    summary:
+      'Type text at an offset in a paragraph. The text takes the formatting of the character before the offset (the first character at offset 0); format sets bold, italic and so on for the new text only. \\n is a line break and \\t a tab; use splitParagraph for a new paragraph. Returns the new text length and the offset after the insert',
+    slots: [
+      req('index', PARAGRAPH_REF),
+      group(req('offset', OFFSET), req('text', s.STRING), opt('format', RUN_STYLE))
+    ]
+  },
+  deleteText: {
+    summary:
+      "Delete the characters from start up to end in a paragraph's text, across runs. Returns the new text length and the offset where the deletion was",
+    slots: [req('index', PARAGRAPH_REF), group(req('start', OFFSET), req('end', OFFSET))]
+  },
+  splitParagraph: {
+    summary:
+      'Split a paragraph in two at an offset, like pressing Enter. The second paragraph keeps the style, or takes the next style (e.g. Normal after a heading) when split at the end. Returns the block and id of both',
+    slots: [req('index', PARAGRAPH_REF), group(req('offset', OFFSET))]
+  },
+  mergeParagraphs: {
+    summary:
+      "Join the paragraph after this one onto its end, like Backspace at the start of the next paragraph. Keeps this paragraph's style. Returns the offset of the join",
+    slots: [req('index', PARAGRAPH_REF)]
+  },
+  formatRange: {
+    summary:
+      "Format the characters from start up to end in a paragraph's text; false turns bold, italic or underline off",
+    slots: [
+      req('index', PARAGRAPH_REF),
+      group(req('start', OFFSET), req('end', OFFSET), req('format', RUN_STYLE))
+    ]
+  },
+  runFormat: {
+    summary:
+      'The formatting text typed at an offset in a paragraph would get: bold, italic, underline, size, color, font and link',
+    slots: [req('index', PARAGRAPH_REF), group(req('offset', OFFSET))],
+    query: true
   },
   formatText: {
     summary: 'Format only the matched text in a block',

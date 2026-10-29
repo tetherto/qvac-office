@@ -1,5 +1,6 @@
 import test from 'brittle'
 import { docx, pptx, xlsx, tools } from '../lib/index.ts'
+import { fixture } from './helpers/engine.ts'
 import type { Operation } from '../lib/tools/index.ts'
 
 function run(doc: tools.Doc, ops: Operation[]): unknown[] {
@@ -86,4 +87,42 @@ test('excel calculation and templates run through apply', (t) => {
   ])
   t.is((results[1] as { value: number }).value, 10)
   t.is((results[3] as { changed: boolean }).changed, false)
+})
+
+function runsOf(doc: tools.Doc, index: number): unknown {
+  if (!(doc instanceof docx.Document)) {
+    throw new Error('expected a Word document')
+  }
+
+  const block = docx.open(doc.save()).read({ from: index, count: 1, detail: 'runs' }).blocks[0]
+
+  return block.type === 'paragraph' ? block.runs : null
+}
+
+test('word offset editing runs through apply, one op per keystroke', (t) => {
+  const { doc, results } = tools.apply(docx.open(fixture('report.docx')), [
+    { op: 'insertText', index: 3, offset: 0, text: 'Q3: ', format: { italic: true } },
+    { op: 'deleteText', index: 3, start: 4, end: 12 },
+    { op: 'formatRange', index: 3, start: 0, end: 3, format: { bold: true } },
+    { op: 'runFormat', index: 3, offset: 2 },
+    { op: 'splitParagraph', index: 3, offset: 4 },
+    { op: 'mergeParagraphs', index: 3 },
+    { op: 'read', from: 3, count: 1 }
+  ])
+  t.alike(results[0], { length: 47, offset: 4 })
+  t.alike(results[1], { length: 39, offset: 4 })
+  t.alike(results[2], { changed: true })
+  t.alike(results[3], { bold: true, italic: true, underline: false, size: 11 })
+  const id = (results[6] as docx.ReadResult).blocks[0].id
+  t.alike((results[4] as docx.SplitResult).first, { block: 3, id })
+  t.alike(results[5], { block: 3, id, offset: 4, length: 39 })
+  t.alike(runsOf(doc, 3), [
+    { text: 'Q3:', bold: true, italic: true },
+    { text: ' ', italic: true },
+    { text: 'grew ' },
+    { text: 'twelve percent', bold: true },
+    { text: ' year over year.' }
+  ])
+  t.ok(tools.operations('docx', { only: ['runFormat'] })[0].query)
+  t.absent(tools.operations('docx', { only: ['insertText'] })[0].query)
 })
