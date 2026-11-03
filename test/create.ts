@@ -195,6 +195,23 @@ test('a second picture on a slide of bullets shares the half the first one took,
   t.ok(first && first.x + first.width <= second.x, 'the pictures sit side by side')
 })
 
+test('addPicture with a size but no position shrinks to the half beside the text', (t) => {
+  const deck = pptx.create()
+  deck.addSlide({ title: 'Fire', body: ['Lightning lit the first fires'] })
+  const wide = deck.addPicture(0, photo(1600, 900), { width: units.inches(8) })
+  const tall = deck.addPicture(0, photo(900, 1600), { width: units.inches(6) })
+  const [title, body] = deck.read()[0].shapes.map((s) => s.box)
+  const { height } = deck.slideSize
+
+  for (const placed of [wide, tall]) {
+    t.ok(body && placed.x >= body.x + body.width, 'the picture stays right of the text')
+    t.ok(title && placed.y >= title.y + title.height, 'the picture stays below the title')
+    t.ok(placed.y + placed.height <= height, 'the picture stays on the slide')
+  }
+
+  t.is(Math.round((wide.height / wide.width) * 16), 9, 'the picture keeps its shape')
+})
+
 test('addSlide takes an image and places it like addPicture', (t) => {
   const deck = pptx.create()
   deck.addSlide({ title: 'Only a picture', image: fixture('red.png') })

@@ -1259,15 +1259,21 @@ export class Presentation {
     checkPlacement(opts)
     const ratio = info.height / info.width
     let { width, height } = opts
-    if (width === undefined && height === undefined) {
-      const natural = { width: info.width * EMU_PER_PIXEL, height: info.height * EMU_PER_PIXEL }
-      const scale = Math.min(1, area.width / natural.width, area.height / natural.height)
-      width = Math.round(natural.width * scale)
-      height = Math.round(natural.height * scale)
+    const sized = width !== undefined || height !== undefined
+    if (!sized) {
+      width = info.width * EMU_PER_PIXEL
+      height = info.height * EMU_PER_PIXEL
     } else if (height === undefined) {
       height = Math.round((width ?? 0) * ratio)
     } else if (width === undefined) {
       width = Math.round(height / ratio)
+    }
+
+    const placed = opts.x !== undefined || opts.y !== undefined
+    if (width && height && !(sized && placed)) {
+      const scale = Math.min(1, area.width / width, area.height / height)
+      width = Math.round(width * scale)
+      height = Math.round(height * scale)
     }
 
     if (!width || !height) {
