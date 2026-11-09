@@ -278,7 +278,8 @@ one, and inserts return them (`ids`, or `id` for a table, image or chart).
 A sheet is its name or 0-based index; cells use A1 references and rows are numbered from 1.
 
 - `sheets()`, `read(sheet, { range, limit })`, `get(sheet, ref)`
-- `setCells(sheet, cells)` — text starting with `=` must parse as a formula
+- `setCells(sheet, cells)` — text starting with `=`, bare or as a styled cell's `value`, must
+  parse as a formula; a leading `'` (`"'=x"`) stores it as text
 - `format(sheet, range, style)`, `appendRows(sheet, rows)`
 - `insertRows(sheet, { at, rows | count })`, `deleteRows(sheet, { at, count })`,
   `deleteColumns(sheet, { column, count })` — move every reference the way Excel does; pivot

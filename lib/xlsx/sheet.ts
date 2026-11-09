@@ -200,7 +200,7 @@ export function isoToSerial(value: string, date1904: boolean): SerialDate {
 function formulaError(input: string, why: string): DocsError {
   return new DocsError(
     'INVALID_FORMULA',
-    `${JSON.stringify(input)} is not a formula (${why}); to store it as text use { value: ${JSON.stringify(input)} }`
+    `${JSON.stringify(input)} is not a formula (${why}); to store it as text write ${JSON.stringify(`'${input}`)}`
   )
 }
 
@@ -260,17 +260,21 @@ function isCellValue(value: unknown): value is CellValue {
   )
 }
 
-function normalizeText(input: string): CellSpec {
+function normalizeText(input: string, style: Record<string, unknown> = {}): CellSpec {
   if (input.length > 32767) {
     throw new DocsError('INVALID_VALUE', 'a cell holds at most 32767 characters')
   }
 
-  if (input.length > 1 && input.startsWith('=')) {
-    checkFormula(input)
-    return { content: true, formula: input, style: {} }
+  if (input.startsWith("'=")) {
+    return { content: true, value: input.slice(1), style }
   }
 
-  return { content: true, value: input, style: {} }
+  if (input.length > 1 && input.startsWith('=')) {
+    checkFormula(input)
+    return { content: true, formula: input, style }
+  }
+
+  return { content: true, value: input, style }
 }
 
 function normalizeObject(input: Record<string, unknown>): CellSpec {
@@ -307,6 +311,10 @@ function normalizeObject(input: Record<string, unknown>): CellSpec {
       'INVALID_VALUE',
       'value must be a string, a finite number, a boolean or null'
     )
+  }
+
+  if (typeof value === 'string') {
+    return normalizeText(value, style)
   }
 
   return { content: true, value, style }

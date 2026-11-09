@@ -14,7 +14,7 @@ function unchecked(value: unknown): value is never {
 }
 
 function styleIndex(sheet: string, ref: string): string | null {
-  const found = new RegExp(`<c r="${ref}" s="(\\d+)"`).exec(sheet)
+  const found = new RegExp(`<c r="${ref}"[^>]*? s="(\\d+)"`).exec(sheet)
   return found ? found[1] : null
 }
 
@@ -78,7 +78,7 @@ test('setCells writes numbers, text, booleans, formulas and dates', (t) => {
     C2: true,
     B4: '=SUM(B2:B3,B5)',
     D1: { date: '2026-04-01' },
-    E1: { value: '=not a formula' }
+    E1: "'=not a formula"
   })
   const again = reopen(book)
   const read = again.read(0)
@@ -117,6 +117,39 @@ test('setCells applies styles and reuses identical ones', (t) => {
   if (unchecked(odd)) {
     t.exception(() => book.setCells(0, odd), /unknown cell style "colour"/)
   }
+})
+
+test('setCells reads a styled = value as a formula and keeps its style', (t) => {
+  const book = budget()
+  book.setCells(0, {
+    B5: { value: '=SUM(B2:B3)', bold: true, format: '#,##0' },
+    A5: { value: 'Total', bold: true, format: '#,##0' },
+    A6: { value: "'=SUM(B2:B3)", bold: true },
+    A7: { value: '=', bold: true }
+  })
+  const again = reopen(book)
+  t.is(again.read(0).formulas.B5, '=SUM(B2:B3)')
+  t.alike(again.get(0, 'B5'), { value: 1650.5, formula: '=SUM(B2:B3)', format: '#,##0' })
+  t.is(again.get(0, 'A5').value, 'Total')
+  t.alike(again.get(0, 'A6'), { value: '=SUM(B2:B3)', formula: null, format: 'General' })
+  t.is(again.get(0, 'A7').value, '=')
+  const sheet = partXml(again, 'xl/worksheets/sheet1.xml')
+  t.ok(styleIndex(sheet, 'B5'))
+  t.is(styleIndex(sheet, 'B5'), styleIndex(sheet, 'A5'))
+  t.ok(partXml(again, 'xl/styles.xml').includes('<b/>'))
+})
+
+test('a styled = value that is not a formula fails like plain text', (t) => {
+  const book = budget()
+  const error =
+    /"=SUM\(B2:B3" is not a formula \(a \( without a matching \)\); to store it as text write "'=SUM\(B2:B3"/
+  t.exception(() => book.setCells(0, { B5: '=SUM(B2:B3' }), error)
+  t.exception(() => book.setCells(0, { B5: { value: '=SUM(B2:B3', bold: true } }), error)
+  t.exception(
+    () => book.setCells(0, { B5: { value: '=SUM(B2:B3)', formula: '=SUM(B2:B3)' } }),
+    /only one of value, formula or date/
+  )
+  t.is(book.changed, false)
 })
 
 test('setCells refuses merged cells and bad input', (t) => {

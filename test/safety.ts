@@ -79,14 +79,14 @@ test('Excel checks that = text is a formula', (t) => {
   const book = xlsx.open(fixture('shared.xlsx'))
   t.exception(
     () => book.setCells(0, { A1: '=)' }),
-    /"=\)" is not a formula \(a \) without a matching \(\); to store it as text use \{ value: "=\)" \}/
+    /"=\)" is not a formula \(a \) without a matching \(\); to store it as text write "'=\)"/
   )
   t.exception(() => book.setCells(0, { A1: '=SUM(B2:B3' }), /a \( without a matching \)/)
   t.exception(() => book.setCells(0, { A1: '=B2+' }), /ends with an operator/)
   t.exception(() => book.setCells(0, { A1: '="open' }), /unclosed string/)
   t.exception(() => book.setCells(0, { A1: { formula: '=' } }), /it is empty/)
   t.execution(() =>
-    book.setCells(0, { A1: '=IF(B2>0,"a (b","c")', A2: "='My Sheet'!A1", A3: { value: '=)' } })
+    book.setCells(0, { A1: '=IF(B2>0,"a (b","c")', A2: "='My Sheet'!A1", A3: "'=)" })
   )
   t.is(book.get(0, 'A3').value, '=)')
 })
