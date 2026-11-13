@@ -13,6 +13,9 @@ const EMU_PER_UNIT: Readonly<Record<string, number>> = {
   px: 9525
 }
 
+const MIN_COORDINATE = -27273042329600
+const MAX_COORDINATE = 27273042316900
+
 const LENGTH = /^\s*(-?\d+(?:\.\d+)?|-?\.\d+)\s*(emu|in|cm|mm|pt|px)\s*$/i
 
 export type Length = number | string
@@ -61,9 +64,25 @@ function malformed(key: string, value: unknown): DocsError {
   )
 }
 
+function inRange(key: string, value: unknown, emu: number): number {
+  if (!(emu >= MIN_COORDINATE && emu <= MAX_COORDINATE)) {
+    throw new DocsError(
+      'INVALID_BOX',
+      `${key} must be from ${MIN_COORDINATE} to ${MAX_COORDINATE} EMU, got ${JSON.stringify(value)}`,
+      { field: key, got: value, expected: `${MIN_COORDINATE} to ${MAX_COORDINATE} EMU` }
+    )
+  }
+
+  return emu
+}
+
 export function length(value: unknown, key = 'length'): number | undefined {
-  if (value === undefined || typeof value === 'number') {
+  if (value === undefined) {
     return value
+  }
+
+  if (typeof value === 'number') {
+    return inRange(key, value, value)
   }
 
   const match = typeof value === 'string' ? LENGTH.exec(value) : null
@@ -71,7 +90,9 @@ export function length(value: unknown, key = 'length'): number | undefined {
     throw malformed(key, value)
   }
 
-  return Math.round(Number(match[1]) * (EMU_PER_UNIT[match[2].toLowerCase()] ?? 1))
+  const emu = Math.round(Number(match[1]) * (EMU_PER_UNIT[match[2].toLowerCase()] ?? 1))
+
+  return inRange(key, value, emu)
 }
 
 export function box<T extends LengthBox>(opts: T): T & EmuBox {

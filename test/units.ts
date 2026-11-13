@@ -36,6 +36,26 @@ test('a malformed length names the field and what it expected', (t) => {
   t.is(failure(() => units.length(true, 'x'))?.details?.field, 'x')
 })
 
+test('a length outside the coordinate range is refused', (t) => {
+  t.is(units.length(-27273042329600, 'x'), -27273042329600)
+  t.is(units.length(27273042316900, 'width'), 27273042316900)
+  t.is(units.length('-2in', 'x'), -2 * 914400)
+  for (const value of ['1000000000000000in', 1e21, -27273042329601, Infinity, NaN]) {
+    const error = failure(() => units.length(value, 'width'))
+    t.is(error?.code, 'INVALID_BOX', String(value))
+    t.is(error?.details?.field, 'width')
+  }
+
+  const deck = pptx.create()
+  deck.addSlide({})
+  const { id } = deck.addTextBox(0, { text: 'hi' })
+  t.is(
+    failure(() => deck.setBox({ slide: 0, shape: id }, { width: '1000000000000000in' }))?.code,
+    'INVALID_BOX'
+  )
+  t.is(failure(() => deck.setBox({ slide: 0, shape: id }, { width: 1e21 }))?.code, 'INVALID_BOX')
+})
+
 test('every format places shapes with unit strings', (t) => {
   const deck = pptx.create()
   deck.addSlide({})
