@@ -3,6 +3,7 @@ import * as pptx from '../lib/pptx/index.ts'
 import { DocsError } from '../lib/errors.ts'
 import { fixture } from './helpers/engine.ts'
 import { rich } from './helpers/pptx-text.ts'
+import type { SlideInfo } from '../lib/pptx/index.ts'
 
 const open = (): pptx.Presentation => pptx.open(fixture('basic.pptx'))
 const reopen = (deck: pptx.Presentation): pptx.Presentation => pptx.open(deck.save())
@@ -181,10 +182,22 @@ test('outline is small and counts what each slide holds', (t) => {
   })
 })
 
+function chars(slide: SlideInfo): number {
+  return (
+    slide.shapes.reduce(
+      (sum, shape) =>
+        sum +
+        (shape.paragraphs ?? []).reduce((n, p) => n + p.text.length, 0) +
+        (shape.rows ?? []).reduce((n, row) => n + row.join('').length, 0),
+      0
+    ) + (slide.notes ?? '').length
+  )
+}
+
 test('readPage continues from the same slide after a slide is added before it', (t) => {
   const deck = open()
-  const sizes = deck.read().map((s) => JSON.stringify(s).length)
-  const first = deck.readPage({ maxChars: sizes[0] })
+  const sizes = deck.read().map(chars)
+  const first = deck.readPage({ limit: sizes[0] })
   deck.addSlide({ at: 0, layout: 'Title Only', title: 'Inserted' })
   const rest = deck.readPage({ from: first.next })
   t.alike(
@@ -193,27 +206,30 @@ test('readPage continues from the same slide after a slide is added before it', 
   )
 })
 
-test('readPage stops before maxChars and hands back the next slide', (t) => {
+test('readPage stops at limit, says it was cut and hands back the next slide', (t) => {
   const deck = open()
-  const sizes = deck.read().map((s) => JSON.stringify(s).length)
-  const first = deck.readPage({ maxChars: sizes[0] + sizes[1] })
+  const sizes = deck.read().map(chars)
+  const first = deck.readPage({ limit: sizes[0] + sizes[1] })
   t.alike(
     first.slides.map((s) => s.index),
     [0, 1]
   )
   t.alike(first.next, { id: 258 })
-  const rest = deck.readPage({ from: first.next, maxChars: sizes[0] + sizes[1] })
+  t.is(first.truncated, true)
+  const rest = deck.readPage({ from: first.next, limit: sizes[0] + sizes[1] })
   t.alike(
     rest.slides.map((s) => s.index),
     [2]
   )
   t.absent(rest.next)
-  const tiny = deck.readPage({ maxChars: 1 })
+  t.absent(rest.truncated)
+  const tiny = deck.readPage({ limit: 1 })
   t.is(tiny.slides.length, 1)
   t.alike(tiny.next, { id: 257 })
   t.is(deck.readPage({ from: { id: 258 } }).slides[0].id, 258)
   t.is(deck.readPage().slides.length, 3)
-  t.is(failure(() => deck.readPage({ maxChars: 0 })).code, 'INVALID_OPTIONS')
+  t.exception(() => deck.readPage({ limit: 0 }), /limit is a positive number of characters/)
+  t.is(failure(() => deck.read(bad({ limit: 10 }))).code, 'INVALID_OPTIONS')
   t.is(failure(() => deck.read(bad({ maxChars: 10 }))).code, 'INVALID_OPTIONS')
   t.is(failure(() => deck.read(bad({ detail: 'words' }))).code, 'INVALID_OPTIONS')
 })

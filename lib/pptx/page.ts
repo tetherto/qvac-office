@@ -9,13 +9,14 @@ import type { ReadOptions, ShapeInfo, SlideInfo, SlideRef } from './types.ts'
 
 export interface PageOptions {
   from?: SlideRef
-  maxChars?: number
+  limit?: number
   detail?: 'runs'
 }
 
 export interface SlidePage {
   slides: SlideInfo[]
   next?: { id: number }
+  truncated?: true
 }
 
 export interface RunSource {
@@ -42,12 +43,13 @@ function checkDetail(detail: unknown): void {
 
 export function readOptions(deck: slides.Deck, opts: ReadOptions): ReadOptions {
   checkDetail(opts.detail)
-  if (isRecord(opts) && 'maxChars' in opts) {
+  const budgeted = isRecord(opts) && ['limit', 'maxChars'].find((field) => field in opts)
+  if (budgeted) {
     throw new DocsError(
       'INVALID_OPTIONS',
-      'read returns every slide asked for; use readPage({ from, maxChars }) for a budget',
+      'read returns every slide asked for; use readPage({ from, limit }) for a budget',
       {
-        field: 'maxChars'
+        field: budgeted
       }
     )
   }
@@ -59,41 +61,52 @@ export function readOptions(deck: slides.Deck, opts: ReadOptions): ReadOptions {
   return { ...opts, slides: opts.slides.map((ref) => slides.slideIndex(deck, ref)) }
 }
 
-function checkBudget(maxChars: unknown): number {
-  if (maxChars === undefined) {
+function checkLimit(limit: unknown): number {
+  if (limit === undefined) {
     return Infinity
   }
 
-  if (typeof maxChars !== 'number' || !Number.isInteger(maxChars) || maxChars < 1) {
+  if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1) {
     throw new DocsError(
       'INVALID_OPTIONS',
-      `maxChars must be a whole number above 0, got ${String(maxChars)}`,
+      `limit is a positive number of characters, got ${String(limit)}`,
       {
-        field: 'maxChars',
-        got: maxChars
+        field: 'limit',
+        expected: 'positive integer',
+        got: limit
       }
     )
   }
 
-  return maxChars
+  return limit
+}
+
+function slideChars(slide: SlideInfo): number {
+  const shapes = slide.shapes.reduce(
+    (sum, shape) =>
+      sum +
+      (shape.paragraphs ?? []).reduce((chars, p) => chars + p.text.length, 0) +
+      (shape.rows ?? []).reduce((chars, row) => chars + row.join('').length, 0),
+    0
+  )
+  return shapes + (slide.notes ?? '').length
 }
 
 export function readPage(deck: slides.Deck, opts: PageOptions, reader: SlideReader): SlidePage {
   checkDetail(opts.detail)
-  const budget = checkBudget(opts.maxChars)
+  const limit = checkLimit(opts.limit)
   const all = slides.entries(deck)
   const from = opts.from === undefined ? 0 : slides.slideIndex(deck, opts.from)
   const out: SlideInfo[] = []
   let used = 0
   for (let index = from; index < all.length; index++) {
     const info = reader(all[index], index)
-    const size = JSON.stringify(info).length
-    if (out.length > 0 && used + size > budget) {
-      return { slides: out, next: { id: Number(all[index].id) } }
+    used += slideChars(info)
+    if (out.length > 0 && used > limit) {
+      return { slides: out, next: { id: Number(all[index].id) }, truncated: true }
     }
 
     out.push(info)
-    used += size
   }
 
   return { slides: out }

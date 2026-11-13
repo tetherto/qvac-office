@@ -42,7 +42,7 @@ export const PPTX: OpTable = {
   readPage: {
     summary: 'Slides within a character budget, with next to continue from',
     slots: [
-      group(opt('from', s.SLIDE), opt('maxChars', s.POSITIVE), opt('detail', { enum: ['runs'] }))
+      group(opt('from', s.SLIDE), opt('limit', s.POSITIVE), opt('detail', { enum: ['runs'] }))
     ],
     query: true
   },

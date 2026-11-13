@@ -51,7 +51,7 @@ Status, 2026-10-28:
 
 - **Outline mode.** Headings with block ranges for docx, titles and layouts for pptx, used
   ranges and header rows for xlsx, at a few hundred tokens for any size of file.
-- **Budgets and cursors.** `maxChars` and a `next` cursor on every read, in place of
+- **Budgets and cursors.** A `limit` and a `next` cursor on every read, in place of
   `from`/`count` arithmetic.
 - **Diff after an edit.** `diff(before, after)` summarising what changed, so a model can check
   and report its own work.

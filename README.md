@@ -156,10 +156,11 @@ while the deck stays open. A shape is `{ slide, shape }`, where `shape` is the i
 - `read({ from, count, detail } | { slides, detail })`, `layouts()` — with `detail: 'runs'`
   each paragraph also lists its runs and the formatting set on each (`bold`, `italic`,
   `underline`, `size`, `color`, `font`, `link`, `field`); inherited formatting is not resolved
-- `readPage({ from, maxChars, detail })` — `{ slides, next }`: stops before the slides' JSON
-  would pass `maxChars` (always at least one slide); `next` is the next slide's `{ id }`, so
-  passing it back as `from` resumes there even after slides are added or removed. `read()` keeps
-  returning a plain array and refuses `maxChars`
+- `readPage({ from, limit, detail })` — `{ slides, next, truncated }`: with `limit` characters
+  set, slides stop once their text (shapes, table cells and notes) passes it (always at least
+  one slide), `truncated` is true and `next` is the next slide's `{ id }`, so passing it back as
+  `from` resumes there even after slides are added or removed. `read()` keeps returning a plain
+  array and refuses `limit`
 - `outline()` — per slide its index, id, layout, title, shape count, whether it has notes and
   its chart, table and picture counts
 - `find({ text, placeholder, kind, name, regex, matchCase })` — `[{ slide, slideId, shape, name,
