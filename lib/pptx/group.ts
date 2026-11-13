@@ -3,7 +3,7 @@ import * as inherit from './inherit.ts'
 import { DocsError } from '../errors.ts'
 import { nextShapeId, type ShapeEntry } from './shapes.ts'
 import { siblings, shapeChildren } from './order.ts'
-import { groupFrame, toParent, bounds, writeOffExt } from './geometry.ts'
+import { throughGroup, turnOf, bounds, writeOffExt, writeTurn } from './geometry.ts'
 import type { Element } from '../xml.ts'
 import type { Box } from './inherit.ts'
 import type { Grouped } from './layout-types.ts'
@@ -19,13 +19,7 @@ interface GroupSpec {
   box: Box
 }
 
-interface Point {
-  x: number
-  y: number
-}
-
 const { a: A, p: P } = xml.ns
-const FULL_TURN = 21600000
 
 function refuse(shape: ShapeEntry, why: string): never {
   throw new DocsError('CANNOT_GROUP', `shape ${shape.id} ${why}`, {
@@ -92,29 +86,16 @@ export function group(shapes: ShapeEntry[], name: unknown): Grouped {
   return { id, ...box, children: list.map((m) => m.shape.id ?? 0) }
 }
 
-function turned(box: Box, centre: Point, rot: number): Box {
-  const angle = (rot / FULL_TURN) * 2 * Math.PI
-  const cx = box.x + box.width / 2 - centre.x
-  const cy = box.y + box.height / 2 - centre.y
-  const x = centre.x + cx * Math.cos(angle) - cy * Math.sin(angle)
-  const y = centre.y + cx * Math.sin(angle) + cy * Math.cos(angle)
-
-  return { ...box, x: Math.round(x - box.width / 2), y: Math.round(y - box.height / 2) }
-}
-
-function release(child: Element, frame: ReturnType<typeof groupFrame>, rot: number): void {
+function release(child: Element, group: Element): void {
   const xfrm = inherit.xfrmOf(child)
   const box = inherit.explicitBox(child)
-  if (!xfrm || !box || !frame) {
+  if (!xfrm || !box) {
     return
   }
 
-  const centre = { x: frame.box.x + frame.box.width / 2, y: frame.box.y + frame.box.height / 2 }
-  writeOffExt(xfrm, turned(toParent(box, frame), centre, rot))
-  if (rot) {
-    const own = Number(xfrm.getAttribute('rot') ?? 0)
-    xfrm.setAttribute('rot', String((((own + rot) % FULL_TURN) + FULL_TURN) % FULL_TURN))
-  }
+  const placed = throughGroup({ box, ...turnOf(child) }, group)
+  writeOffExt(xfrm, placed.box)
+  writeTurn(xfrm, placed)
 }
 
 export function ungroup(shape: ShapeEntry): number[] {
@@ -130,11 +111,9 @@ export function ungroup(shape: ShapeEntry): number[] {
     )
   }
 
-  const frame = groupFrame(shape.el)
-  const rot = Number(xfrm?.getAttribute('rot') ?? 0)
   const released = shapeChildren(shape.el)
   for (const child of released) {
-    release(child, frame, rot)
+    release(child, shape.el)
     shape.el.parentNode?.insertBefore(child, shape.el)
   }
 

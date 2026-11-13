@@ -1,6 +1,7 @@
 import test from 'brittle'
 import * as pptx from '../lib/pptx/index.ts'
 import { DocsError } from '../lib/errors.ts'
+import * as xml from '../lib/xml.ts'
 import { fixture, decode, unzip } from './helpers/engine.ts'
 
 const open = (): pptx.Presentation => pptx.open(fixture('basic.pptx'))
@@ -99,6 +100,48 @@ test('duplicateShape copies a picture and a group to another slide', (t) => {
   t.alike(again[1].shapes[3].paragraphs?.[0].text, 'Grouped caption')
   const rels = decode(unzip(deck.save())['ppt/slides/_rels/slide1.xml.rels'])
   t.ok(rels.includes('../media/image1.png'))
+})
+
+function turnedGroup(attributes: Record<string, string>): pptx.Presentation {
+  const deck = open()
+  deck.group(2, [3, 4])
+  deck.setBox({ slide: 2, shape: 7 }, { y: 2743200 })
+  const doc = deck.package.xml('/ppt/slides/slide3.xml')
+  const group = xml.descendants(doc, xml.ns.p, 'grpSp')[0]
+  const xfrm = xml.descendants(group, xml.ns.a, 'xfrm')[0]
+  for (const [name, value] of Object.entries(attributes)) {
+    xfrm.setAttribute(name, value)
+  }
+
+  return deck
+}
+
+function copyXfrm(deck: pptx.Presentation): string {
+  return (
+    slideXml(deck, 1)
+      .match(/<a:xfrm[^>]*>/g)
+      ?.at(-1) ?? ''
+  )
+}
+
+test('duplicateShape places a child of a rotated group where it shows on the slide', (t) => {
+  const deck = turnedGroup({ rot: '5400000' })
+  const copy = deck.duplicateShape({ slide: 2, shape: 3 }, { slide: 0 })
+  t.alike([copy.x, copy.y, copy.width, copy.height], [3200400, 457200, 1828800, 914400])
+  t.ok(copyXfrm(deck).includes('rot="5400000"'))
+})
+
+test('duplicateShape places a child of a flipped group where it shows on the slide', (t) => {
+  const deck = turnedGroup({ flipH: '1' })
+  const copy = deck.duplicateShape({ slide: 2, shape: 3 }, { slide: 0 })
+  t.alike([copy.x, copy.y], [5486400, 2743200])
+  t.ok(copyXfrm(deck).includes('flipH="1"'))
+})
+
+test('overlaps sees a child of a rotated group where it shows on the slide', (t) => {
+  const deck = turnedGroup({ rot: '5400000' })
+  const box = deck.addTextBox(2, { x: 3200400, y: 457200, width: 100, height: 100 })
+  t.alike(deck.setBox({ slide: 2, shape: 3 }, { x: 914400 }).overlaps, [2, box.id])
 })
 
 test('duplicateShape copies a chart with its own chart part and workbook', (t) => {

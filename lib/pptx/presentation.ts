@@ -94,7 +94,7 @@ import { claim, checkInto, type Claim } from './into.ts'
 import { duplicate } from './duplicate.ts'
 import { relayout } from './relayout.ts'
 import { dropAnimations } from './timing.ts'
-import { slideBox } from './geometry.ts'
+import { slidePlacement, writeTurn } from './geometry.ts'
 import type {
   Size,
   SizePreset,
@@ -933,7 +933,7 @@ export class Presentation {
     const { entry, found } = this.locate(target)
     const slide = slides.slideIndex(this.deck, at.slide ?? target.slide)
     const dest = slides.slideAt(this.deck, slide)
-    const source = slideBox({ pkg: this.package, slide: entry.part, el: found.el })
+    const source = slidePlacement({ pkg: this.package, slide: entry.part, el: found.el })
     if (!source) {
       throw new DocsError('INVALID_BOX', `shape ${found.id} has no position to copy`)
     }
@@ -944,8 +944,12 @@ export class Presentation {
     const id = Number(xml.descendants(el, P, 'cNvPr')[0]?.getAttribute('id'))
     const offset = dest.part === entry.part && at.x === undefined && at.y === undefined
     const shift = offset ? DUPLICATE_OFFSET : 0
-    const box = { ...source, x: at.x ?? source.x + shift, y: at.y ?? source.y + shift }
+    const box = { ...source.box, x: at.x ?? source.box.x + shift, y: at.y ?? source.box.y + shift }
     const placed = this.setBox({ slide, shape: id }, box)
+    const xfrm = inherit.xfrmOf(el)
+    if (xfrm) {
+      writeTurn(xfrm, source)
+    }
 
     return { slide, ...placed }
   }

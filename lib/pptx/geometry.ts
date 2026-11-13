@@ -8,7 +8,23 @@ export interface GroupFrame {
   child: Box
 }
 
+export interface Turn {
+  rot: number
+  flipH: boolean
+  flipV: boolean
+}
+
+export interface Placed extends Turn {
+  box: Box
+}
+
+interface Point {
+  x: number
+  y: number
+}
+
 const { a: A, p: P } = xml.ns
+const FULL_TURN = 21600000
 
 export function groupFrame(group: Element): GroupFrame | null {
   const box = inherit.explicitBox(group)
@@ -46,14 +62,73 @@ export function toParent(box: Box, frame: GroupFrame): Box {
   }
 }
 
-export function slideBox(shape: ShapeInSlide): Box | null {
-  let box = inherit.box(shape)
-  for (let up = shape.el.parentNode; box && xml.isElement(up, P, 'grpSp'); up = up.parentNode) {
-    const frame = groupFrame(up)
-    box = frame ? toParent(box, frame) : box
+function wholeTurn(rot: number): number {
+  return ((rot % FULL_TURN) + FULL_TURN) % FULL_TURN
+}
+
+function turned(box: Box, centre: Point, rot: number): Box {
+  const angle = (rot / FULL_TURN) * 2 * Math.PI
+  const cx = box.x + box.width / 2 - centre.x
+  const cy = box.y + box.height / 2 - centre.y
+  const x = centre.x + cx * Math.cos(angle) - cy * Math.sin(angle)
+  const y = centre.y + cx * Math.sin(angle) + cy * Math.cos(angle)
+
+  return { ...box, x: Math.round(x - box.width / 2), y: Math.round(y - box.height / 2) }
+}
+
+function mirrored(box: Box, centre: Point, turn: Turn): Box {
+  return {
+    ...box,
+    x: turn.flipH ? 2 * centre.x - box.x - box.width : box.x,
+    y: turn.flipV ? 2 * centre.y - box.y - box.height : box.y
+  }
+}
+
+export function turnOf(el: Element): Turn {
+  const xfrm = inherit.xfrmOf(el)
+
+  return {
+    rot: Number(xfrm?.getAttribute('rot') ?? 0),
+    flipH: xfrm?.getAttribute('flipH') === '1',
+    flipV: xfrm?.getAttribute('flipV') === '1'
+  }
+}
+
+export function throughGroup(placed: Placed, group: Element): Placed {
+  const frame = groupFrame(group)
+  if (!frame) {
+    return placed
   }
 
-  return box
+  const turn = turnOf(group)
+  const centre = { x: frame.box.x + frame.box.width / 2, y: frame.box.y + frame.box.height / 2 }
+  const box = mirrored(toParent(placed.box, frame), centre, turn)
+  const own = turn.flipH === turn.flipV ? placed.rot : -placed.rot
+
+  return {
+    box: turned(box, centre, turn.rot),
+    rot: wholeTurn(turn.rot + own),
+    flipH: placed.flipH !== turn.flipH,
+    flipV: placed.flipV !== turn.flipV
+  }
+}
+
+export function slidePlacement(shape: ShapeInSlide): Placed | null {
+  const box = inherit.box(shape)
+  if (!box) {
+    return null
+  }
+
+  let placed = { box, ...turnOf(shape.el) }
+  for (let up = shape.el.parentNode; xml.isElement(up, P, 'grpSp'); up = up.parentNode) {
+    placed = throughGroup(placed, up)
+  }
+
+  return placed
+}
+
+export function slideBox(shape: ShapeInSlide): Box | null {
+  return slidePlacement(shape)?.box ?? null
 }
 
 export function intersects(a: Box, b: Box): boolean {
@@ -85,4 +160,15 @@ export function writeOffExt(xfrm: Element, box: Box): void {
 
   xml.setAttributes(off, { x: box.x, y: box.y })
   xml.setAttributes(ext, { cx: box.width, cy: box.height })
+}
+
+export function writeTurn(xfrm: Element, turn: Turn): void {
+  const values = { rot: turn.rot, flipH: turn.flipH ? 1 : 0, flipV: turn.flipV ? 1 : 0 }
+  for (const [name, value] of Object.entries(values)) {
+    if (value) {
+      xfrm.setAttribute(name, String(value))
+    } else {
+      xfrm.removeAttribute(name)
+    }
+  }
 }
