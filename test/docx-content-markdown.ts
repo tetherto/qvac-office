@@ -1,7 +1,8 @@
 import test from 'brittle'
 import * as docx from '../lib/docx/index.ts'
 import { parse, inlines } from '../lib/docx/markdown.ts'
-import { fixture, decode, unzip } from './helpers/engine.ts'
+import * as utf8 from '../lib/utf8.ts'
+import { fixture, decode, unzip, zipFiles } from './helpers/engine.ts'
 import type { Block, Document, ParagraphBlock, TableBlock } from '../lib/docx/index.ts'
 
 const reopen = (doc: Document): Document => docx.open(doc.save())
@@ -141,6 +142,22 @@ test('appendMarkdown refuses link targets that link() refuses', (t) => {
 
   t.is(doc.changed, false)
   t.absent(decode(unzip(doc.save())['word/_rels/document.xml.rels']).includes('example.com'))
+})
+
+test('markdown() keeps a nested table inside its cell', (t) => {
+  const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+  const cell = (body: string): string => `<w:tc>${body}</w:tc>`
+  const p = (value: string): string => `<w:p><w:r><w:t>${value}</w:t></w:r></w:p>`
+  const tbl = (rows: string): string =>
+    `<w:tbl><w:tblPr/><w:tblGrid><w:gridCol/></w:tblGrid>${rows}</w:tbl>`
+  const nested = tbl(`<w:tr>${cell(p('inner one'))}</w:tr><w:tr>${cell(p('inner two'))}</w:tr>`)
+  const outer = tbl(`<w:tr>${cell(p('Outer') + nested + '<w:p/>')}</w:tr>`)
+  const files = unzip(docx.create().save())
+  files['word/document.xml'] = utf8.encode(
+    `<w:document xmlns:w="${W}"><w:body>${outer}<w:p/><w:sectPr/></w:body></w:document>`
+  )
+  const doc = docx.open(zipFiles(files))
+  t.is(doc.markdown().markdown, '| Outer inner one inner two |\n| --- |\n')
 })
 
 test('markdown() round-trips what appendMarkdown wrote', (t) => {

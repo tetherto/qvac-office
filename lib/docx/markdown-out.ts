@@ -3,7 +3,7 @@ import * as text from './text.ts'
 import { DocsError } from '../errors.ts'
 import { isBullet } from './lists.ts'
 import { W, R, blocks, headingLevel, listInfo, type Host } from './host.ts'
-import type { Element } from '../xml.ts'
+import type { Element, Node } from '../xml.ts'
 import type { Inline } from './markdown.ts'
 
 export interface MarkdownOptions {
@@ -222,16 +222,26 @@ function paragraphLine(host: Host, p: Element): Line | null {
 
 function cellMarkdown(host: Host, tc: Element, plain: boolean): string {
   return xml
-    .children(tc, W, 'p')
+    .descendants(tc, W, 'p')
     .map((p) => inlineMarkdown(host, p, plain).trim())
     .filter(Boolean)
     .join(' ')
     .replace(/\|/g, '\\|')
 }
 
+function tableOf(tr: Element): Node | null {
+  let node = tr.parentNode
+  while (node && !xml.isElement(node, W, 'tbl')) {
+    node = node.parentNode
+  }
+
+  return node
+}
+
 function tableLine(host: Host, tbl: Element): Line {
   const rows = xml
     .descendants(tbl, W, 'tr')
+    .filter((tr) => tableOf(tr) === tbl)
     .map((tr, r) => xml.children(tr, W, 'tc').map((tc) => cellMarkdown(host, tc, r === 0)))
   const columns = Math.max(1, ...rows.map((cells) => cells.length))
   const line = (cells: string[]): string =>
