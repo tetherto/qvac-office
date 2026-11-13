@@ -91,6 +91,10 @@ test('unknown operations and keys name what exists', (t) => {
   const unknown = failure(() => tools.apply(book, { op: 'explode' }))
   t.is(unknown.code, 'UNKNOWN_OPERATION')
   t.ok((unknown.details?.candidates as string[]).includes('setCells'))
+  for (const op of ['toString', 'constructor', '__proto__']) {
+    t.is(failure(() => tools.apply(book, { op })).code, 'UNKNOWN_OPERATION', op)
+    t.is(failure(() => tools.tool('xlsx', { only: [op] })).code, 'INVALID_OPTIONS', op)
+  }
 
   const extra = failure(() =>
     tools.apply(book, { op: 'setCells', sheet: 0, cells: {}, colour: 'red' })

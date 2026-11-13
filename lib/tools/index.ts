@@ -110,7 +110,7 @@ function table(format: Format, only?: readonly string[]): [string, OpTable[strin
     return entries
   }
 
-  const unknown = only.filter((name) => !(name in TABLES[format]))
+  const unknown = only.filter((name) => !Object.hasOwn(TABLES[format], name))
   if (unknown.length) {
     throw new DocsError('INVALID_OPTIONS', `${format} has no operation ${unknown.join(', ')}`, {
       field: 'only',
@@ -178,7 +178,9 @@ function located(err: unknown, index: number, op: string): unknown {
 }
 
 function run({ doc, format, operation, resolve }: Step): unknown {
-  const spec = TABLES[format][operation.op]
+  const spec = Object.hasOwn(TABLES[format], operation.op)
+    ? TABLES[format][operation.op]
+    : undefined
   if (!spec) {
     throw new DocsError('UNKNOWN_OPERATION', `${format} has no operation ${String(operation.op)}`, {
       field: 'op',
