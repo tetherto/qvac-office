@@ -167,6 +167,15 @@ test('read returns footnotes and comments with their anchors', (t) => {
   t.alike(para(read.blocks[3]).footnotes, ['1'])
   t.alike(para(read.blocks[3]).comments, ['7'])
   t.alike(docx.open(fixture('report.docx')).read().comments, [])
+
+  const away = reopen(doc).read({ from: 0, count: 2 })
+  t.alike(
+    [away.footnotes, away.comments],
+    [[], []],
+    'a partial read leaves out notes it does not cite'
+  )
+  const here = reopen(doc).read({ from: 3, count: 1 })
+  t.is(here.footnotes.length + here.comments.length, 2, 'a partial read keeps the notes it cites')
 })
 
 test('setText turns line and vertical tabs into breaks and drops characters XML cannot hold', (t) => {

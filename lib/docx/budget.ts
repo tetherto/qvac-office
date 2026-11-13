@@ -4,42 +4,46 @@ export interface Window {
   from: number
   end: number
   total: number
-  maxChars?: number
+  limit?: number
 }
 
 export interface Taken<T> {
   items: T[]
   next?: number
+  truncated?: true
 }
 
-export function validateMaxChars(value: unknown): number | undefined {
+export function validateLimit(value: unknown): number | undefined {
   if (value === undefined || (typeof value === 'number' && Number.isInteger(value) && value > 0)) {
     return value
   }
 
   throw new DocsError(
     'INVALID_OPTIONS',
-    `maxChars must be a positive whole number, got ${String(value)}`,
+    `limit is a positive number of characters, got ${String(value)}`,
     {
-      field: 'maxChars',
+      field: 'limit',
       expected: 'positive integer',
       got: value
     }
   )
 }
 
-export function take<T>(window: Window, produce: (index: number) => T): Taken<T> {
+export function take<T>(
+  window: Window,
+  produce: (index: number) => T,
+  chars: (item: T) => number
+): Taken<T> {
   const items: T[] = []
   let used = 0
   for (let i = window.from; i < window.end; i++) {
     const item = produce(i)
-    const size = JSON.stringify(item).length
-    if (window.maxChars !== undefined && items.length && used + size > window.maxChars) {
-      return { items, next: i }
+    used += chars(item)
+    if (window.limit !== undefined && items.length && used > window.limit) {
+      return { items, next: i, truncated: true }
     }
 
     items.push(item)
-    used += size
   }
 
   return window.end < window.total ? { items, next: window.end } : { items }

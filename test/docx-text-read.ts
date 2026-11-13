@@ -76,15 +76,20 @@ test('outline reports ids for headings that have one', (t) => {
   t.alike(doc.outline().headings, [{ level: 1, title: 'Top', index: 0, id: ids[0], end: 2 }])
 })
 
-test('read stops at maxChars, returns at least one block and a next cursor', (t) => {
+test('read stops at limit, returns at least one block and a next cursor', (t) => {
   const doc = open()
-  const first = doc.read({ maxChars: 1 })
+  const first = doc.read({ limit: 1 })
   t.is(first.blocks.length, 1)
   t.is(first.next, 1)
+  t.is(first.truncated, true)
   const pages: number[][] = []
   for (let from: number | undefined = 0; from !== undefined;) {
-    const page = doc.read({ from, maxChars: 300 })
-    t.ok(page.blocks.length === 1 || JSON.stringify(page.blocks).length <= 300 + page.blocks.length)
+    const page = doc.read({ from, limit: 100 })
+    const chars = page.blocks.reduce(
+      (sum, b) => sum + ('text' in b ? b.text.length : b.rows.join('').length),
+      0
+    )
+    t.ok(page.blocks.length === 1 || chars <= 100)
     pages.push(page.blocks.map((b) => b.index))
     from = page.next
   }
@@ -92,8 +97,10 @@ test('read stops at maxChars, returns at least one block and a next cursor', (t)
   t.ok(pages.length > 2)
   t.alike(pages.flat(), [...Array(14).keys()])
   t.is(doc.read({ count: 3 }).next, 3)
+  t.absent(doc.read({ count: 3 }).truncated, 'a count that ends the read is not a cut')
   t.absent(doc.read().next)
-  t.exception(() => doc.read({ maxChars: 0 }), /maxChars must be a positive whole number/)
+  t.absent(doc.read().truncated)
+  t.exception(() => doc.read({ limit: 0 }), /limit is a positive number of characters/)
 })
 
 test('detail runs reports run formatting and links', (t) => {
@@ -123,4 +130,20 @@ test('detail runs reports run formatting and links', (t) => {
     { text: '.' }
   ])
   t.exception(() => Reflect.apply(doc.read, doc, [{ detail: 'words' }]), /detail must be "runs"/)
+})
+
+test('read: limit stops at a block boundary and says where to go on, and no limit reads every block', (t) => {
+  const doc = docx.create()
+  doc.appendParagraphs(Array.from({ length: 20 }, (_, i) => `Paragraph ${i}`))
+  const part = doc.read({ limit: 50 })
+  t.is(part.truncated, true)
+  t.is(part.next, part.blocks.length)
+  t.ok(part.blocks.length > 0 && part.blocks.length < 20)
+  t.is(part.total, 20)
+
+  const rest = doc.read({ from: part.next })
+  t.is(rest.blocks[0]?.index, part.next)
+  t.is(rest.truncated, undefined, 'a read with no limit is whole')
+  t.is(rest.blocks.length, 20 - (part.next ?? 0))
+  t.exception(() => doc.read({ limit: 0 }), /limit is a positive number of characters/)
 })

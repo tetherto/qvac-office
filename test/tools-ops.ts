@@ -20,7 +20,7 @@ test('word operations run through apply', (t) => {
     { op: 'addTableOfContents', at: 0, levels: 2 },
     { op: 'outline' },
     { op: 'find', heading: true },
-    { op: 'read', maxChars: 200, detail: 'runs' },
+    { op: 'read', limit: 200, detail: 'runs' },
     { op: 'markdown' },
     { op: 'page' }
   ])

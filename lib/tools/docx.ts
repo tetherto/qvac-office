@@ -95,7 +95,7 @@ export const DOCX: OpTable = {
       group(
         opt('from', s.INDEX),
         opt('count', s.POSITIVE),
-        opt('maxChars', s.POSITIVE),
+        opt('limit', s.POSITIVE),
         opt('detail', { enum: ['runs'] })
       )
     ],

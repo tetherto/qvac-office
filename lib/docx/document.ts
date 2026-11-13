@@ -67,7 +67,7 @@ export type Paragraphs = TextSpec | TextSpec[]
 export interface ReadOptions {
   from?: number
   count?: number
-  maxChars?: number
+  limit?: number
   detail?: 'runs'
 }
 
@@ -119,6 +119,7 @@ export interface ReadResult {
   total: number
   blocks: Block[]
   next?: number
+  truncated?: true
   headers: string[]
   footers: string[]
   footnotes: Note[]
@@ -680,6 +681,18 @@ function mainPart(pkg: Package): string {
   throw new DocsError('NOT_DOCX', 'the file is not a Word document')
 }
 
+function blockChars(block: Block): number {
+  if (block.type === 'table') {
+    return block.rows.reduce((sum, row) => sum + row.join('').length, 0)
+  }
+
+  return block.text.length
+}
+
+function cited(blocks: Block[], key: 'footnotes' | 'comments'): Set<string> {
+  return new Set(blocks.flatMap((block) => (block.type === 'paragraph' ? (block[key] ?? []) : [])))
+}
+
 export class Document {
   package: Package
   main: string
@@ -739,9 +752,9 @@ export class Document {
       from,
       end: Math.min(all.length, from + count),
       total: all.length,
-      maxChars: budget.validateMaxChars(opts.maxChars)
+      limit: budget.validateLimit(opts.limit)
     }
-    const page = budget.take(window, (i) => this.readBlock(all[i], i, runs))
+    const page = budget.take(window, (i) => this.readBlock(all[i], i, runs), blockChars)
     const result: ReadResult = {
       total: all.length,
       blocks: page.items,
@@ -752,6 +765,17 @@ export class Document {
     }
     if (page.next !== undefined) {
       result.next = page.next
+    }
+
+    if (page.truncated) {
+      result.truncated = true
+    }
+
+    if (page.items.length < all.length) {
+      const footnotes = cited(page.items, 'footnotes')
+      const comments = cited(page.items, 'comments')
+      result.footnotes = result.footnotes.filter(({ id }) => footnotes.has(id))
+      result.comments = result.comments.filter(({ id }) => comments.has(id))
     }
 
     return result

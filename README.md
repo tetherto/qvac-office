@@ -67,7 +67,7 @@ doc.appendMarkdown('# Plan\n\nShip the **engine** first.\n\n- Word\n- PowerPoint
 const [match] = doc.find({ text: 'engine' })
 doc.insertText({ id: match.id }, { offset: 0, text: 'Now: ' })
 
-doc.read({ maxChars: 4000 })
+doc.read({ limit: 4000 })
 // { total: 5, blocks: [{ index: 0, id: '0D38A729', style: 'Heading 1', text: 'Plan', ... }, ...] }
 ```
 
@@ -215,10 +215,12 @@ digits; a table's is its first paragraph's). Ids do not move when other blocks a
 or deleted. `read()` and `find()` report them, every paragraph the engine inserts gets a fresh
 one, and inserts return them (`ids`, or `id` for a table, image or chart).
 
-- `read({ from, count, maxChars, detail })` — blocks, headers, footers, footnotes and
-  comments. `maxChars` stops before the blocks' JSON passes that size (at least one block
-  is returned) and `next` is the index to continue from. `detail: 'runs'` adds each
-  paragraph's `runs` with their bold, italic, underline, size, color, font and link
+- `read({ from, count, limit, detail })` — blocks, headers, footers, footnotes and
+  comments. With `limit` characters set, blocks stop at a block boundary once their text
+  passes it (at least one block is returned), `truncated` is true and `next` is the block to
+  read from. `next` is also set when `count` ends before the last block. A read that leaves
+  blocks out returns only the footnotes and comments its blocks cite. `detail: 'runs'` adds
+  each paragraph's `runs` with their bold, italic, underline, size, color, font and link
 - `find({ text, regex, style, heading, matchCase })` — `[{ index, id, type, text, style }]`;
   criteria combine, text is a substring, regex a source string
 - `outline({ depth })` — headings with level, title, `index` and `end` of the blocks they
