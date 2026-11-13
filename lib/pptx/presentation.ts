@@ -447,11 +447,13 @@ export class Presentation {
   main: string
   private slidesChanged: boolean
   private touchedSlides: Set<string>
+  private highestSlideId: number
 
   constructor(pkg: Package) {
     this.package = pkg
     this.slidesChanged = false
     this.touchedSlides = new Set()
+    this.highestSlideId = 0
     const main = pkg.related('/', REL.officeDocument)[0]
     if (!main || !MAIN_TYPES.has(pkg.contentType(main) ?? '')) {
       if (pkg.rels('/').byType(STRICT_REL).length) {
@@ -841,6 +843,7 @@ export class Presentation {
     }
 
     xml.remove(entry.el)
+    this.highestSlideId = Math.max(this.highestSlideId, Number(entry.id))
     pkg.rels(this.main).remove(entry.rId)
     pkg.remove(entry.part)
     pkg.touch(this.main)
@@ -1092,10 +1095,12 @@ export class Presentation {
     pkg.rels(part).add(REL.slideLayout, spec.layout)
     const rId = pkg.rels(this.main).add(REL.slide, part)
     const list = slides.ensureSlideIdList(this.deck)
-    const id = Math.max(255, ...spec.ids.map(Number)) + 1
+    const id = Math.max(255, this.highestSlideId, ...spec.ids.map(Number)) + 1
     if (id >= 2147483648) {
       throw new DocsError('TOO_MANY_SLIDES', 'the deck has run out of slide ids')
     }
+
+    this.highestSlideId = id
 
     const el = xml.builder(xml.owner(list), P)('sldId', { id })
     xml.setNsAttribute(el, { namespace: R, local: 'id' }, rId)

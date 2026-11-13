@@ -149,7 +149,8 @@ Lengths are EMU, or a string such as `"2in"`, `"5cm"`, `"40mm"`, `"72pt"` or `"9
 
 Slides are numbered from 0. Wherever a slide is taken it can also be `{ id }`, the stable
 `p:sldId/@id` that `read()`, `outline()`, `find()` and `addSlide()` report, so a plan of several
-calls survives inserts, moves and deletes. A shape is `{ slide, shape }`, where `shape` is the id
+calls survives inserts, moves and deletes; a deleted slide's id is not handed to a new slide
+while the deck stays open. A shape is `{ slide, shape }`, where `shape` is the id
 `read()` reports or `'title'`, `'subtitle'` or `'body'`.
 
 - `read({ from, count, detail } | { slides, detail })`, `layouts()` — with `detail: 'runs'`

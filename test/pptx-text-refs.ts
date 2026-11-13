@@ -67,6 +67,18 @@ test('every slide argument takes { id }', (t) => {
   )
 })
 
+test('a deleted slide id is not handed to a new slide', (t) => {
+  const deck = open()
+  deck.deleteSlide({ id: 258 })
+  t.is(deck.addSlide().id, 259)
+  t.is(
+    failure(() => deck.setText({ slide: { id: 258 }, shape: 'title' }, 'x')).code,
+    'SLIDE_NOT_FOUND'
+  )
+  deck.deleteSlide({ id: 259 })
+  t.is(deck.addSlide().id, 260)
+})
+
 test('an unknown slide id is SLIDE_NOT_FOUND with the ids that exist', (t) => {
   const deck = open()
   const err = failure(() => deck.setText({ slide: { id: 999 }, shape: 'title' }, 'x'))
