@@ -225,12 +225,12 @@ function evaluateIn(node: Node, scope: Scope): Value {
     case 'unary': {
       const n = toNumber(scalar(evaluateIn(node.arg, scope), scope.book))
 
-      return isError(n) || node.op === '+' ? n : -n
+      return isError(n) || node.op === '+' ? n : checked(-n)
     }
     case 'percent': {
       const n = toNumber(scalar(evaluateIn(node.arg, scope), scope.book))
 
-      return isError(n) ? n : n / 100
+      return isError(n) ? n : checked(n / 100)
     }
     case 'binary':
       return binary(node, scope)

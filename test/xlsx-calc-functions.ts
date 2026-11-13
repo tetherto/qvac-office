@@ -72,6 +72,24 @@ test('arithmetic follows Excel precedence, coercion and errors', (t) => {
   ])
 })
 
+test('text without digits before an exponent is not a number', (t) => {
+  check(t, [
+    ['=-"E5"', '#VALUE!'],
+    ['="E5"%', '#VALUE!'],
+    ['="E5"*1', '#VALUE!'],
+    ['=-"1e400"', '#VALUE!'],
+    ['=".5"*1', 0.5],
+    ['="5."*1', 5],
+    ['="-.5E1"*1', -5],
+    ['="1,000%"*1', 10]
+  ])
+
+  const book = xlsx.create()
+  book.setCells(0, { A1: 'E5', B1: '=-A1', C1: '=A1%' })
+  t.is(book.get(0, 'B1').value, '#VALUE!')
+  t.is(book.get(0, 'C1').value, '#VALUE!')
+})
+
 test('SUM and friends ignore text and booleans in ranges but coerce them as arguments', (t) => {
   check(t, [
     ['=SUM(A1:A6)', 3],

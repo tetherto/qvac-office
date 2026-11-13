@@ -37,7 +37,7 @@ export const ERRORS = {
 }
 
 const KNOWN_ERRORS = new Map(Object.values(ERRORS).map((e) => [e.code, e]))
-const NUMERIC_TEXT = /^[+-]?(\d{1,3}(,\d{3})+|\d+)?(\.\d*)?([eE][+-]?\d+)?%?$/
+const NUMERIC_TEXT = /^[+-]?(?=\.?\d)(\d{1,3}(,\d{3})+|\d+)?(\.\d*)?([eE][+-]?\d+)?%?$/
 const MAYBE_VALUE = /[$€£¥()/:]|\d\s*-\s*\d|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i
 const BIG = 1e15
 const TINY = 1e-9
@@ -83,6 +83,9 @@ export function textToNumber(text: string): number | null {
 
   const percent = trimmed.endsWith('%')
   const n = Number(trimmed.replace(/[,%]/g, ''))
+  if (!Number.isFinite(n)) {
+    return null
+  }
 
   return percent ? n / 100 : n
 }
