@@ -9,11 +9,7 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node"],
-    "paths": {
-      "b4a": ["./types/b4a.d.ts"],
-      "brittle": ["./types/brittle.d.ts"]
-    }
+    "types": ["node"]
   },
   "include": ["lib/**/*.ts", "test/**/*.ts", "scripts/**/*.ts", "types/**/*.d.ts"],
   "exclude": ["node_modules", "dist"]
