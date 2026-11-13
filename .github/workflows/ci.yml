@@ -19,7 +19,7 @@ jobs:
           - macos-latest
           - windows-latest
     runs-on: ${{ matrix.os }}
-    name: Test / ${{ matrix.platform }}
+    name: Test / ${{ matrix.os }}
     steps:
       - uses: holepunchto/actions/bare-base@v1
       - run: npm test
