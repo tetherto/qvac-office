@@ -1,5 +1,5 @@
 {
-  "name": "@qvac/office",
+  "name": "qvac-office",
   "version": "0.1.0",
   "description": "Read, edit and create .pptx, .docx and .xlsx files in pure JavaScript, on Bare and Node",
   "type": "module",
