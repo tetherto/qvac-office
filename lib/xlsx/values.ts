@@ -127,7 +127,9 @@ export function numberText(n: number): string {
     throw new Unsupported('a very small number has no fixed text form')
   }
 
-  return String(rounded(n))
+  const text = String(rounded(n))
+
+  return text.includes('e') ? exponentText(n) : text
 }
 
 export function toText(value: Scalar): string | ErrorValue {
