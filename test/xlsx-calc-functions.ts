@@ -217,6 +217,17 @@ test('lookups find exact and approximate matches', (t) => {
   ])
 })
 
+test('an approximate lookup skips values of another type than the key', (t) => {
+  check(t, [
+    ['=VLOOKUP("x",A1:B2,2)', '#N/A'],
+    ['=MATCH("x",A1:A2)', '#N/A'],
+    ['=HLOOKUP("x",{1,2,3;10,20,30},2)', '#N/A'],
+    ['=MATCH(TRUE,{1,2,3})', '#N/A'],
+    ['=MATCH(2,{1,2,"a"})', 2],
+    ['=MATCH("b",{1,2,"a","c"})', 3]
+  ])
+})
+
 test('volatile, unknown and spilling formulas are left uncomputed', (t) => {
   check(t, [
     ['=TODAY()', null],

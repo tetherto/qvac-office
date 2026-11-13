@@ -72,7 +72,7 @@ function search(spec: Search, book: Book): number | ErrorValue {
   }
 
   let found = -1
-  for (const entry of list) {
+  for (const entry of list.filter((e) => typeof e.value === typeof key)) {
     const order = compare(entry.value, key)
     if (mode > 0 ? order <= 0 : order >= 0) {
       found = entry.index
