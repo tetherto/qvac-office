@@ -125,6 +125,24 @@ test('appendMarkdown writes headings, lists, tables and links', (t) => {
   )
 })
 
+test('appendMarkdown refuses link targets that link() refuses', (t) => {
+  const doc = reopen(docx.create())
+  for (const url of ['javascript:alert(1)', 'file:///etc/passwd']) {
+    const sources = [`[ok](https://example.com) then [x](${url})`, `| a |\n| - |\n| [y](${url}) |`]
+    for (const source of sources) {
+      try {
+        doc.appendMarkdown(source)
+        t.fail(`accepted ${url}`)
+      } catch (err) {
+        t.is((err as { code?: string }).code, 'INVALID_LINK', url)
+      }
+    }
+  }
+
+  t.is(doc.changed, false)
+  t.absent(decode(unzip(doc.save())['word/_rels/document.xml.rels']).includes('example.com'))
+})
+
 test('markdown() round-trips what appendMarkdown wrote', (t) => {
   const doc = docx.create()
   doc.appendMarkdown(SAMPLE)

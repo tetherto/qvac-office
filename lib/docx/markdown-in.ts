@@ -2,6 +2,7 @@ import * as xml from '../xml.ts'
 import * as text from './text.ts'
 import { DocsError } from '../errors.ts'
 import { ListAllocator, place } from './lists.ts'
+import { validateUrl } from './links.ts'
 import { parse, type Inline, type MarkdownBlock } from './markdown.ts'
 import { W, R, REL_BASE, addExternal, styleId, textWidth, runStyle, type Host } from './host.ts'
 import type { Document, Element } from '../xml.ts'
@@ -254,6 +255,18 @@ function element(b: Builder, block: MarkdownBlock): Element[] {
   }
 }
 
+function inlinesOf(block: MarkdownBlock): Inline[] {
+  switch (block.type) {
+    case 'table':
+      return [...block.header, ...block.rows.flat()].flat()
+    case 'rule':
+    case 'code':
+      return []
+    default:
+      return block.inlines
+  }
+}
+
 export function build(host: Host, markdown: unknown): Element[] {
   if (typeof markdown !== 'string') {
     throw new DocsError('INVALID_TEXT', 'markdown must be a string', {
@@ -266,6 +279,12 @@ export function build(host: Host, markdown: unknown): Element[] {
   const blocks = parse(markdown)
   if (blocks.length === 0) {
     throw new DocsError('INVALID_TEXT', 'the markdown holds no blocks to insert')
+  }
+
+  for (const inline of blocks.flatMap(inlinesOf)) {
+    if (inline.link !== undefined) {
+      validateUrl(inline.link)
+    }
   }
 
   const doc = host.package.xml(host.main)
