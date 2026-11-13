@@ -1,8 +1,18 @@
 # @qvac/office
 
-Read, edit and create `.pptx`, `.docx` and `.xlsx` files in TypeScript, on Bare and Node, without
-Python or native code. The engine behind the QVAC office tools: every edit is a method call that
-returns a plain report, and every failure is a `DocsError` with a stable `code`.
+Read, edit and create Word, PowerPoint and Excel files (`.docx`, `.pptx`, `.xlsx`) in plain
+JavaScript, on [Bare](https://github.com/holepunchto/bare) and Node. No Python, no LibreOffice,
+no native code.
+
+It is the engine behind the QVAC office tools, built so a language model can drive it safely:
+
+- **Every edit is one method call** that returns a small plain report of what changed.
+- **Every failure is a `DocsError`** with a stable `code` and a message that names what does
+  exist, so the next call can fix itself.
+- **Ids that survive edits.** Slides, shapes and paragraphs have stable ids, so a plan of several
+  calls still lands after an insert or a delete.
+- **Ready-made tool definitions** with JSON Schemas, atomic batches, and a diff of two versions.
+- **Untouched parts are saved byte for byte**, so a one-word edit doesn't rewrite the file.
 
 ```sh
 npm install @qvac/office
@@ -10,32 +20,132 @@ npm install @qvac/office
 
 ## Usage
 
+### PowerPoint
+
 ```js
-import { pptx, docx, xlsx, units, DocsError } from '@qvac/office'
+import { pptx } from '@qvac/office'
 
+const deck = pptx.create({ size: '16:9' })
+
+deck.addSlide({ layout: 'Title Slide', title: 'Quarterly Review', body: 'Q3 2026' })
+deck.addSlide({ layout: 'Title Only', title: 'Revenue' })
+deck.addChart(1, {
+  type: 'column',
+  title: 'Revenue by quarter',
+  categories: ['Q1', 'Q2', 'Q3'],
+  series: [{ name: '2026', values: [11, 13, 17] }],
+  x: '1in',
+  y: '1.5in',
+  width: '8in',
+  height: '4.5in'
+})
+
+const bytes = deck.save() // a Uint8Array, ready to write to disk
+```
+
+Open an existing deck, look around, and edit it:
+
+```js
 const deck = pptx.open(bytes)
-deck.setText({ slide: 0, shape: 'title' }, 'Why Sunsets Are Red')
-const out = deck.save()
+
+deck.outline()
+// [{ index: 0, id: 256, layout: 'Title Slide', title: 'Quarterly Review', shapes: 2, ... }, ...]
+
+deck.setText({ slide: 0, shape: 'title' }, 'Quarterly Review — Final')
+// { paragraphs: 1, changed: true, overflow: false }
 ```
 
-Each format also has its own entry: `@qvac/office/pptx`, `@qvac/office/docx` and
-`@qvac/office/xlsx`. Lengths are EMU; `units` converts from inches, points and centimetres.
+### Word
 
-## Layout
+```js
+import { docx } from '@qvac/office'
 
+const doc = docx.create({ title: 'Plan' })
+
+doc.appendMarkdown('# Plan\n\nShip the **engine** first.\n\n- Word\n- PowerPoint\n- Excel')
+
+const [match] = doc.find({ text: 'engine' })
+doc.insertText({ id: match.id }, { offset: 0, text: 'Now: ' })
+
+doc.read({ maxChars: 4000 })
+// { total: 5, blocks: [{ index: 0, id: '0D38A729', style: 'Heading 1', text: 'Plan', ... }, ...] }
 ```
-opc/        zip container, content types, relationships, the part graph   (every format)
-xml.ts      namespace-aware DOM helpers over @xmldom/xmldom                 (every format)
-drawingml/  text bodies, run styling and charts                            (pptx, docx, xlsx)
-pptx/       slides, layouts, placeholders, shapes, notes, sections, new decks
-docx/       blocks, runs, styles, sections, tables, headers, new documents
-xlsx/       sheets, cells, strings, styles, formulas, reference moving, drawings, new workbooks
+
+### Excel
+
+```js
+import { xlsx } from '@qvac/office'
+
+const book = xlsx.create({ sheets: ['Sales'] })
+
+book.setCells('Sales', { A1: 'Month', B1: 'Total', A2: 'Jan', B2: 120, A3: 'Feb', B3: 140 })
+book.setCells('Sales', { B4: '=SUM(B2:B3)' })
+
+book.get('Sales', 'B4')
+// { value: 260, formula: '=SUM(B2:B3)', format: 'General' }
 ```
 
-`opc/zip.ts` is our own zip reader and writer; compression goes through `#zlib`
-(`bare-zlib` on Bare, `zlib` on Node).
+Formulas get their cached values computed, so a reader sees `260` without opening Excel.
 
-## PowerPoint
+### As LLM tools
+
+`tools` turns each format into one tool definition, and runs a batch of ops from the model in
+order. If any op fails, none of them apply.
+
+```js
+import { pptx, tools, DocsError } from '@qvac/office'
+
+const definition = tools.tool('pptx', { name: 'slides' })
+// { name: 'slides', description: '...', input_schema: { type: 'object', properties: { ops: ... } } }
+
+const { doc, results } = tools.apply(pptx.open(bytes), [
+  { op: 'addSlide', title: 'Next steps', body: ['Ship it'] },
+  { op: 'setStyle', slide: 0, shape: 'title', style: { color: 'C0392B', bold: true } }
+])
+const saved = doc.save()
+```
+
+A failed batch throws a `DocsError` that serialises to what the model needs for its next call:
+
+```js
+try {
+  tools.apply(pptx.open(bytes), [{ op: 'setText', slide: 9, shape: 'title', text: 'Hi' }])
+} catch (err) {
+  if (err instanceof DocsError) JSON.stringify(err)
+  // {"code":"SLIDE_NOT_FOUND",
+  //  "message":"ops[0] setText: slide 9 does not exist; the deck has 2 slides (0 to 1) with ids 256, 257",
+  //  "details":{"field":"slide","got":9,"candidates":[256,257],"index":0,"op":"setText",...}}
+}
+```
+
+### Compare two versions
+
+```js
+import { diff } from '@qvac/office'
+
+diff.diff(before, after)
+// { format: 'pptx', changes: [{ kind: 'added', where: 'slide 2', after: '...' }],
+//   counts: { added: 1, removed: 0, changed: 0 }, truncated: false }
+```
+
+## Entry points
+
+| Import                | What it is                                                     |
+| --------------------- | -------------------------------------------------------------- |
+| `@qvac/office`        | Everything below, plus `DocsError`, `CODES` and `units`        |
+| `@qvac/office/pptx`   | `open(bytes)` and `create(opts)` for presentations             |
+| `@qvac/office/docx`   | `open(bytes)` and `create(opts)` for documents                 |
+| `@qvac/office/xlsx`   | `open(bytes)` and `create(opts)` for workbooks                 |
+| `@qvac/office/tools`  | Tool definitions, `apply`, `detect` and `open` for LLM callers |
+| `@qvac/office/diff`   | `diff(before, after)`                                          |
+| `@qvac/office/render` | PNG pages and PDF on Bare, through optional peers              |
+
+Lengths are EMU, or a string such as `"2in"`, `"5cm"`, `"40mm"`, `"72pt"` or `"96px"`;
+`units` converts from inches, points and centimetres.
+
+## API
+
+### PowerPoint
 
 Slides are numbered from 0. Wherever a slide is taken it can also be `{ id }`, the stable
 `p:sldId/@id` that `read()`, `outline()`, `find()` and `addSlide()` report, so a plan of several
@@ -94,7 +204,7 @@ a placeholder's box (inherited from the layout); the placeholder is removed and 
 `replaced`. A placeholder with content is refused with `PLACEHOLDER_HAS_TEXT` unless
 `replace: true`. A picture keeps its aspect ratio, centred in the box.
 
-## Word
+### Word
 
 The body is a list of blocks — paragraphs and tables — numbered from 0. Anywhere a block
 index or insert position is taken, `{ id }` works too: the paragraph's `w14:paraId` (8 hex
@@ -160,7 +270,7 @@ one, and inserts return them (`ids`, or `id` for a table, image or chart).
 - `setHeader(text, { type })`, `setFooter(text, { type })`
 - `docx.create({ title, page, size, fonts })`
 
-## Excel
+### Excel
 
 A sheet is its name or 0-based index; cells use A1 references and rows are numbered from 1.
 
@@ -207,21 +317,11 @@ A sheet is its name or 0-based index; cells use A1 references and rows are numbe
   set `workbook.autoCalculate = false` to opt out. Excel still recalculates on load
   (`fullCalcOnLoad`).
 
-## Tools
+### Tools
 
 `@qvac/office/tools` is the surface an LLM calls. Each operation is a method of the format
 class, described by a JSON Schema whose fields are the method's arguments, with option
 objects flattened beside the target.
-
-```js
-import { tools } from '@qvac/office'
-
-const definition = tools.tool('docx', { name: 'word' })
-const { doc, results } = tools.apply(document, [
-  { op: 'appendParagraphs', paragraphs: [{ text: 'Plan', style: 'Heading 1' }] },
-  { op: 'addImage', at: 1, image: 'data:image/png;base64,...', width: '3in' }
-])
-```
 
 - `tool(format, { name, only })` is one tool definition whose input is `{ ops: [...] }`.
   `operations(format)` lists each operation with its own schema.
@@ -235,7 +335,7 @@ const { doc, results } = tools.apply(document, [
 - Errors serialise to `{ code, message, details }`. `details` carries fields such as `field`,
   `expected`, `got` and `candidates` when the next call can use them.
 
-## Diff and render
+### Diff and render
 
 - `diff.diff(before, after, { limit, excerpt })` takes two versions of a document, as bytes
   or open documents. It returns what was added, removed and changed, by block, slide and
@@ -245,7 +345,7 @@ const { doc, results } = tools.apply(document, [
   - They need the optional peers `bare-x-to-pdf`, `bare-pdfium` and `bare-png`.
   - Without them, or on Node, they fail with `RENDER_UNAVAILABLE`.
 
-## Templates
+### Templates
 
 `.dotx`, `.potx` and `.xltx` (and their macro-enabled variants) open like any other file. Each
 format class has a `template` property and `toDocument()`, which rewrites the main part's
@@ -260,7 +360,36 @@ content type so the saved file is a regular `.docx`, `.pptx` or `.xlsx`.
 - `Package.strict` fails a save when a part changed without `touch()`; the tests run strict.
 - `save({ modified, modifiedBy })` records the edit in the document properties.
 
-## Testing
+## Development
+
+```sh
+npm install
+npm run lint
+npm test
+npm run build
+```
+
+`npm run build` compiles `lib/` to `dist/` with declarations; the package ships only `dist/`.
+After adding a test file, regenerate the runner with `npm run test:generate`.
+
+### Layout
+
+```
+opc/        zip container, content types, relationships, the part graph   (every format)
+xml.ts      namespace-aware DOM helpers over @xmldom/xmldom                 (every format)
+drawingml/  text bodies, run styling and charts                            (pptx, docx, xlsx)
+pptx/       slides, layouts, placeholders, shapes, notes, sections, new decks
+docx/       blocks, runs, styles, sections, tables, headers, new documents
+xlsx/       sheets, cells, strings, styles, formulas, reference moving, drawings, new workbooks
+tools/      tool definitions and atomic batches for LLM callers
+diff/       what changed between two versions
+render/     pages to PNG and PDF on Bare
+```
+
+`opc/zip.ts` is our own zip reader and writer; compression goes through `#zlib`
+(`bare-zlib` on Bare, `zlib` on Node).
+
+### Testing
 
 `test/` covers every format, a fuzz test (`FUZZ_ROUNDS` raises its rounds) and a
 corpus of real files from the Apache POI test data in `test/fixtures/corpus/`, with the
@@ -277,18 +406,6 @@ dotnet run --project scripts/validate -- validate-out
 `scripts/validate/render.mjs` renders LibreOffice's PDF conversion of those files with
 [bare-pdfium](https://github.com/tetherto/bare-pdfium) to catch blank output; install it first
 (`npm i --no-save bare-pdfium`) and run it with `bare`.
-
-## Development
-
-```sh
-npm install
-npm run lint
-npm test
-npm run build
-```
-
-`npm run build` compiles `lib/` to `dist/` with declarations; the package ships only `dist/`.
-After adding a test file, regenerate the runner with `npm run test:generate`.
 
 ## License
 
