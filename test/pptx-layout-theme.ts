@@ -1,6 +1,7 @@
 import test from 'brittle'
 import * as pptx from '../lib/pptx/index.ts'
 import { DocsError } from '../lib/errors.ts'
+import * as xml from '../lib/xml.ts'
 import { fixture, decode, unzip } from './helpers/engine.ts'
 
 const open = (): pptx.Presentation => pptx.open(fixture('basic.pptx'))
@@ -103,6 +104,22 @@ test('setLayout keeps text it has no place for, where it was', (t) => {
   const slide = reopen(deck).read()[0]
   t.is(slide.shapes[0].placeholder, 'title')
   t.alike(slide.shapes[1].box, subtitle)
+})
+
+test('setLayout drops the animations of the placeholders it removes', (t) => {
+  const deck = pptx.create()
+  deck.addSlide({ layout: 'Two Content', title: 'Compare' })
+  const part = '/ppt/slides/slide1.xml'
+  const doc = deck.package.xml(part)
+  const timing = xml.parse(
+    '<p:timing xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:tnLst><p:par><p:cTn id="1"><p:childTnLst><p:set><p:cBhvr><p:tgtEl><p:spTgt spid="3"/></p:tgtEl></p:cBhvr></p:set></p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>'
+  )
+  xml.root(doc).appendChild(doc.importNode(xml.root(timing), true))
+  deck.package.touch(part)
+  const result = deck.setLayout(0, 'Title Only')
+  t.alike(result.removed, [3, 4])
+  t.is(result.removedAnimations, true)
+  t.absent(decode(unzip(deck.save())['ppt/slides/slide1.xml']).includes('p:timing'))
 })
 
 test('setLayout drops empty placeholders it cannot carry', (t) => {

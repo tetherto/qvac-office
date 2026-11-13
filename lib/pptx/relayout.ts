@@ -6,6 +6,7 @@ import { isEmptyPlaceholder } from './overlaps.ts'
 import { fitted } from './picture-area.ts'
 import { writeOffExt } from './geometry.ts'
 import { layoutName } from './read.ts'
+import { dropAnimations } from './timing.ts'
 import type { Element } from '../xml.ts'
 import type { Package } from '../opc/package.ts'
 import type { Box } from './inherit.ts'
@@ -161,6 +162,10 @@ function leftOver(at: Switch, shapes: ShapeEntry[], report: Relayout): void {
       placeholder: shape.placeholder ?? '',
       text: contentText(shape)
     })
+  }
+
+  if (dropAnimations(at.pkg.xml(at.slide), new Set(report.removed.map(String)))) {
+    report.removedAnimations = true
   }
 }
 

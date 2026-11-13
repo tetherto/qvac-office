@@ -93,6 +93,7 @@ import { overlaps } from './overlaps.ts'
 import { claim, checkInto, type Claim } from './into.ts'
 import { duplicate } from './duplicate.ts'
 import { relayout } from './relayout.ts'
+import { dropAnimations } from './timing.ts'
 import { slideBox } from './geometry.ts'
 import type {
   Size,
@@ -759,9 +760,7 @@ export class Presentation {
     const doc = this.package.xml(entry.part)
     const ids = shapeIds(found.el)
     const result: Deleted = { deleted: found.id }
-    const timing = xml.child(xml.root(doc), P, 'timing')
-    if (timing && xml.descendants(timing, P, 'spTgt').some((t) => ids.has(xml.attr(t, 'spid')))) {
-      xml.remove(timing)
+    if (dropAnimations(doc, ids)) {
       result.removed = { animations: true }
     }
 
@@ -975,7 +974,8 @@ export class Presentation {
   ungroup(target: ShapeRef): Ungrouped {
     const { entry, found } = this.locate(target)
     const removed =
-      found.kind === 'group' && this.dropAnimations(entry.part, new Set([String(found.id)]))
+      found.kind === 'group' &&
+      dropAnimations(this.package.xml(entry.part), new Set([String(found.id)]))
     const children = grouping.ungroup(found)
     this.touchSlide(entry.part)
     const result: Ungrouped = { ungrouped: found.id ?? 0, children }
@@ -1339,16 +1339,5 @@ export class Presentation {
 
   private overlapsOf(part: string, el: Element): number[] {
     return overlaps({ pkg: this.package, slide: part, size: this.slideSize }, el)
-  }
-
-  private dropAnimations(part: string, ids: Set<string>): boolean {
-    const timing = xml.child(this.package.root(part), P, 'timing')
-    if (!timing || !xml.descendants(timing, P, 'spTgt').some((t) => ids.has(xml.attr(t, 'spid')))) {
-      return false
-    }
-
-    xml.remove(timing)
-
-    return true
   }
 }

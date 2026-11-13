@@ -120,4 +120,5 @@ export interface Relayout {
   kept: KeptPlaceholder[]
   removed: number[]
   added: number[]
+  removedAnimations?: true
 }

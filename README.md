@@ -192,8 +192,9 @@ kind, text }]`; `text` and `name` match a substring (or a regular expression wit
 - `theme()`, `setTheme({ colors, fonts: { heading, body } })` — edits every master's theme
 - `setLayout(slide, name)` — moves placeholders to the new layout's slots by role (title,
   subtitle, body, then the same type or a content slot), adds the new layout's empty
-  placeholders, drops empty ones with no slot and reports as `kept` those with content, which
-  stay where they were
+  placeholders, drops empty ones with no slot (and the slide's animations when one targets them,
+  reporting `removedAnimations`) and reports as `kept` those with content, which stay where they
+  were
 - `pptx.create({ size, fonts, colors, title })`
 
 Every add and `setBox` reports `overlaps`: the ids of other top-level shapes on the slide
