@@ -86,6 +86,43 @@ test('a failing op applies nothing and says which op failed', (t) => {
   t.is(title?.paragraphs?.[0]?.text, 'Hello')
 })
 
+test('a later batch reads what an earlier batch calculated', (t) => {
+  const book = xlsx.create()
+  book.setCells(0, { A1: 1, B1: '=A1*2' })
+  const first = tools.apply(book, { op: 'setCells', sheet: 0, cells: { A1: 10 } })
+  const second = tools.apply(first.doc, { op: 'get', sheet: 0, ref: 'B1' })
+  t.is((second.results[0] as { value: unknown }).value, 20)
+})
+
+test('apply keeps the options the document was opened with', (t) => {
+  const seed = xlsx.create()
+  seed.setCells(0, { A1: 1, B1: '=A1*2' })
+  const book = xlsx.open(seed.save(), { calculate: false, limits: { maxRatio: 100000 } })
+  const { doc } = tools.apply(book, { op: 'setCells', sheet: 0, cells: { A1: 10 } })
+  if (!(doc instanceof xlsx.Workbook)) {
+    t.fail('expected a workbook')
+    return
+  }
+
+  t.is(doc.autoCalculate, false)
+  t.alike(doc.package.options.limits, { maxRatio: 100000 })
+  t.is(doc.get(0, 'B1').value, 2)
+})
+
+test('a failing batch leaves the workbook as it was', (t) => {
+  const book = xlsx.create()
+  book.setCells(0, { A1: 1, B1: '=A1*2' })
+  book.setCells(0, { A1: 5 })
+  failure(() =>
+    tools.apply(book, [
+      { op: 'setCells', sheet: 0, cells: { A1: 10 } },
+      { op: 'read', sheet: 'Missing' }
+    ])
+  )
+  t.is(book.get(0, 'A1').value, 5)
+  t.is(book.get(0, 'B1').value, 10)
+})
+
 test('unknown operations and keys name what exists', (t) => {
   const book = xlsx.create()
   const unknown = failure(() => tools.apply(book, { op: 'explode' }))

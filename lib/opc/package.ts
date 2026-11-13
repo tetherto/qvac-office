@@ -42,6 +42,7 @@ export class Package {
   static strict = false
 
   strict: boolean
+  options: OpenOptions
   contentTypes: ContentTypes
   private parts: Map<string, Part>
   private folded: Map<string, string>
@@ -53,6 +54,7 @@ export class Package {
 
   constructor(entries: [string, Uint8Array][], opts: OpenOptions = {}) {
     this.strict = opts.strict ?? Package.strict
+    this.options = opts
     this.parts = new Map()
     this.folded = new Map()
     this.order = entries.map(([name]) => name)

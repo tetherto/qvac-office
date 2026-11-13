@@ -79,12 +79,12 @@ export function detect(bytes: Uint8Array): Format | null {
   return MAIN_TYPES.find(([marker]) => type.includes(marker))?.[1] ?? null
 }
 
-export function openAs(format: Format, bytes: Uint8Array): Doc {
+export function openAs(format: Format, bytes: Uint8Array, opts?: xlsx.WorkbookOpenOptions): Doc {
   if (format === 'pptx') {
-    return pptx.open(bytes)
+    return pptx.open(bytes, opts)
   }
 
-  return format === 'docx' ? docx.open(bytes) : xlsx.open(bytes)
+  return format === 'docx' ? docx.open(bytes, opts) : xlsx.open(bytes, opts)
 }
 
 export function open(bytes: Uint8Array): Doc {
@@ -198,6 +198,14 @@ function run({ doc, format, operation, resolve }: Step): unknown {
   return Reflect.apply(method, doc, args)
 }
 
+function copy(doc: Doc, format: Format): Doc {
+  const opts =
+    doc instanceof xlsx.Workbook
+      ? { ...doc.package.options, calculate: doc.autoCalculate }
+      : doc.package.options
+  return openAs(format, doc.save(), opts)
+}
+
 function isList(ops: Operation | readonly Operation[]): ops is readonly Operation[] {
   return Array.isArray(ops)
 }
@@ -209,7 +217,7 @@ export function apply(
 ): Applied {
   const format = formatOf(doc)
   const resolve = opts.resolveImage ?? defaultImage
-  const work = openAs(format, doc.package.save())
+  const work = copy(doc, format)
   const list = isList(ops) ? ops : [ops]
   const results = list.map((operation, index) => {
     try {
