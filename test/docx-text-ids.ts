@@ -84,6 +84,26 @@ test('tables, rows, images and charts are addressed by their first paragraph id'
   }
 })
 
+test('a table keeps its id when its first row is inserted or deleted', (t) => {
+  const doc = docx.create()
+  const table = doc.addTable(0, { rows: [['A'], ['B']] })
+  doc.addRow({ id: table.id }, ['x'], { at: 0 })
+  t.is(doc.read().blocks[0].id, table.id)
+  doc.setCell({ table: { id: table.id }, row: 0, column: 0 }, 'y')
+  doc.deleteRow({ table: { id: table.id }, row: 0 })
+  t.is(doc.read().blocks[0].id, table.id)
+  doc.setCell({ table: { id: table.id }, row: 0, column: 0 }, 'z')
+  const reopened = reopen(doc)
+  const block = reopened.read().blocks[0]
+  t.is(block.id, table.id)
+  if (block.type === 'table') {
+    t.alike(block.rows, [['z'], ['B']])
+  }
+
+  const all = [...documentXml(doc).matchAll(/w14:paraId="([0-9A-F]{8})"/g)].map((m) => m[1])
+  t.is(new Set(all).size, all.length)
+})
+
 test('an existing mc:Ignorable list is kept and not repeated', (t) => {
   const doc = docx.open(fixture('report.docx'))
   t.absent(doc.read().blocks[0].id)

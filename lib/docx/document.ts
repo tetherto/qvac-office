@@ -993,8 +993,10 @@ export class Document {
     }
 
     cells.forEach((tc, c) => fillCell(tc, cellText(values[c])))
+    const id = ids.blockId(tbl)
     this.stamp([tr])
     insertRow(tr, { tbl, rows, at })
+    ids.keepId(tbl, id)
     this.touch()
 
     return { rows: rows.length + 1 }
@@ -1025,9 +1027,11 @@ export class Document {
       )
     }
 
+    const id = ids.blockId(tbl)
     const parent = tr.parentNode
     xml.remove(tr)
     removeEmptyWrappers(parent, tbl)
+    ids.keepId(tbl, id)
     this.touch()
 
     return { rows: rows.length - 1 }

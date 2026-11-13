@@ -25,6 +25,25 @@ export function blockId(block: Element): string | null {
   return p ? paraId(p) : null
 }
 
+export function keepId(block: Element, id: string | null): void {
+  const paragraphs = xml.descendants(block, W, 'p')
+  const first = paragraphs[0]
+  if (!id || !first || paraId(first) === id) {
+    return
+  }
+
+  const name = { namespace: W14, local: 'paraId' }
+  const displaced = first.getAttributeNS(W14, 'paraId')
+  const holder = paragraphs.find((p) => paraId(p) === id)
+  if (holder && displaced) {
+    xml.setNsAttribute(holder, name, displaced)
+  } else if (holder) {
+    holder.removeAttributeNS(W14, 'paraId')
+  }
+
+  xml.setNsAttribute(first, name, id)
+}
+
 function usedIds(root: Element): Set<string> {
   const used = new Set<string>()
   for (const p of xml.descendants(root, W, 'p')) {
