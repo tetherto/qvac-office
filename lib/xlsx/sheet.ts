@@ -891,7 +891,7 @@ export class Sheet {
     }
   }
 
-  private guardWrite(pos: Position, ref: string): void {
+  guardWrite(pos: Position, ref: string): void {
     this.guardMerged(pos, ref)
     for (const f of xml.descendants(this.doc, X, 'f')) {
       const kind = f.getAttribute('t')

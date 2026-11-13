@@ -1,8 +1,11 @@
 import test from 'brittle'
 import * as xlsx from '../lib/xlsx/index.ts'
+import * as xml from '../lib/xml.ts'
 import { DocsError } from '../lib/errors.ts'
 import { decode, unzip } from './helpers/engine.ts'
 
+const X = xml.ns.x
+const SHEET = '/xl/worksheets/sheet1.xml'
 const reopen = (book: xlsx.Workbook): xlsx.Workbook => xlsx.open(book.save())
 const sheetXml = (book: xlsx.Workbook): string =>
   decode(unzip(book.save())['xl/worksheets/sheet1.xml'])
@@ -37,6 +40,37 @@ test('merge keeps the top-left value and reports the cells it cleared', (t) => {
     code(() => again.setCells(0, { B2: 1 })),
     'CELL_MERGED'
   )
+})
+
+test('merge refuses to clear a shared formula master or part of an array formula', (t) => {
+  const book = xlsx.create()
+  book.setCells(0, { B1: '=A1*2', B2: '=A2*2', B3: '=A3*2', D1: '=1', D2: 1 })
+  const doc = book.package.xml(SHEET)
+  const formula = (ref: string): xml.Element =>
+    xml
+      .descendants(doc, X, 'f')
+      .filter((f) => xml.isElement(f.parentNode) && xml.attr(f.parentNode, 'r') === ref)[0]
+  xml.setAttributes(formula('B1'), { t: 'shared', ref: 'B1:B3', si: '0' })
+  for (const ref of ['B2', 'B3']) {
+    const f = formula(ref)
+    xml.setAttributes(f, { t: 'shared', si: '0' })
+    f.textContent = ''
+  }
+
+  xml.setAttributes(formula('D1'), { t: 'array', ref: 'D1:D2' })
+  book.package.touch(SHEET)
+
+  t.is(
+    code(() => book.merge(0, 'A1:B1')),
+    'SHARED_FORMULA'
+  )
+  t.is(
+    code(() => book.merge(0, 'C2:D2')),
+    'SHARED_FORMULA'
+  )
+  t.alike(book.read(0).formulas, { B1: '=A1*2', B2: '=A2*2', B3: '=A3*2', D1: '=1' })
+  t.is(book.get(0, 'D2').value, 1)
+  t.alike(book.merge(0, 'B2:C2').cleared, [])
 })
 
 test('unmerge drops every merge the range touches', (t) => {

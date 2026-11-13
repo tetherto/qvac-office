@@ -2,7 +2,7 @@ import * as xml from '../xml.ts'
 import * as refs from './refs.ts'
 import * as areas from './areas.ts'
 import * as tables from './tables.ts'
-import { SHEET_ORDER, type Sheet } from './sheet.ts'
+import { SHEET_ORDER, type CellEntry, type Sheet } from './sheet.ts'
 import { DocsError } from '../errors.ts'
 import type { Area } from './refs.ts'
 import type { Element } from '../xml.ts'
@@ -48,18 +48,18 @@ function guard(sheet: Sheet, area: Area, range: string): void {
   }
 }
 
-function clearCovered(sheet: Sheet, area: Area): string[] {
-  const cleared: string[] = []
-  for (const { el, row, col } of sheet.cells()) {
+function covered(sheet: Sheet, area: Area): CellEntry[] {
+  return sheet.cells().filter(({ el, row, col }) => {
     const inside = areas.contains(area, { top: row, bottom: row, left: col, right: col })
-    if (!inside || (row === area.top && col === area.left)) {
-      continue
-    }
+    const corner = row === area.top && col === area.left
 
-    if (!el.firstChild && !el.hasAttribute('t')) {
-      continue
-    }
+    return inside && !corner && (!!el.firstChild || el.hasAttribute('t'))
+  })
+}
 
+function clearCovered(sheet: Sheet, cells: CellEntry[]): string[] {
+  const cleared: string[] = []
+  for (const { el, row, col } of cells) {
     for (const n of Array.from(el.childNodes)) {
       el.removeChild(n)
     }
@@ -79,7 +79,12 @@ export function merge(sheet: Sheet, range: unknown): Merged {
   const area = areas.parse(range)
   const ref = refs.range(area)
   guard(sheet, area, ref)
-  const cleared = clearCovered(sheet, area)
+  const cells = covered(sheet, area)
+  for (const { row, col } of cells) {
+    sheet.guardWrite({ row, col }, refs.cell(row, col))
+  }
+
+  const cleared = clearCovered(sheet, cells)
   const list = mergeList(sheet)
   list.appendChild(xml.setAttributes(xml.named(sheet.doc, 'mergeCell', X), { ref }))
   list.setAttribute('count', String(xml.children(list, X, 'mergeCell').length))
