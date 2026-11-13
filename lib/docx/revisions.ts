@@ -92,10 +92,10 @@ function joinNext(p: Element): void {
 }
 
 function paragraphMarks(root: Element, mode: Mode, counts: ChangeCounts): void {
-  const joining = mode === 'accept' ? 'del' : 'ins'
-  for (const local of ['ins', 'del']) {
+  const joining = mode === 'accept' ? ['del', 'moveFrom'] : ['ins', 'moveTo']
+  for (const local of ['ins', 'del', 'moveFrom', 'moveTo']) {
     for (const mark of marks(root, local, isParagraphMark)) {
-      const p = local === joining ? paragraphOf(mark) : null
+      const p = joining.includes(local) ? paragraphOf(mark) : null
       xml.remove(mark)
       if (p) {
         joinNext(p)

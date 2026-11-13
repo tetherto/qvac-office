@@ -13,8 +13,10 @@ const TRACKED = [
   `<w:p><w:pPr><w:jc w:val="center"/><w:pPrChange w:id="3" ${BY}><w:pPr><w:jc w:val="right"/></w:pPr></w:pPrChange></w:pPr><w:r><w:rPr><w:b/><w:rPrChange w:id="4" ${BY}><w:rPr><w:i/></w:rPr></w:rPrChange></w:rPr><w:t>Styled</w:t></w:r></w:p>`,
   `<w:p><w:pPr><w:rPr><w:del w:id="5" ${BY}/></w:rPr></w:pPr><w:r><w:t xml:space="preserve">Joined </w:t></w:r></w:p>`,
   `<w:p><w:r><w:t>tail</w:t></w:r></w:p>`,
-  `<w:p><w:moveFrom w:id="6" ${BY}><w:r><w:t>Moved</w:t></w:r></w:moveFrom></w:p>`,
-  `<w:p><w:moveTo w:id="7" ${BY}><w:r><w:t>Moved</w:t></w:r></w:moveTo></w:p>`
+  `<w:p><w:pPr><w:rPr><w:moveFrom w:id="8" ${BY}/></w:rPr></w:pPr><w:moveFrom w:id="6" ${BY}><w:r><w:t>Moved</w:t></w:r></w:moveFrom></w:p>`,
+  `<w:p><w:r><w:t>Middle</w:t></w:r></w:p>`,
+  `<w:p><w:pPr><w:rPr><w:moveTo w:id="9" ${BY}/></w:rPr></w:pPr><w:moveTo w:id="7" ${BY}><w:r><w:t>Moved</w:t></w:r></w:moveTo></w:p>`,
+  `<w:p><w:r><w:t>End</w:t></w:r></w:p>`
 ].join('')
 
 function tracked(): Document {
@@ -44,11 +46,11 @@ test('acceptChanges keeps insertions, drops deletions and joins deleted paragrap
     deletions: 1,
     moves: 2,
     formatting: 2,
-    paragraphs: 1,
+    paragraphs: 3,
     rows: 0
   })
   const reread = reopen(doc)
-  t.alike(texts(reread), ['Keep added', 'Styled', 'Joined tail', '', 'Moved'])
+  t.alike(texts(reread), ['Keep added', 'Styled', 'Joined tail', 'Middle', 'Moved', 'End'])
   const xml = body(reread)
   t.ok(xml.includes('<w:jc w:val="center"/>'))
   t.ok(xml.includes('<w:b/>'))
@@ -63,7 +65,7 @@ test('rejectChanges restores deletions and the old formatting', (t) => {
   t.is(counts.insertions, 1)
   t.is(counts.deletions, 1)
   t.is(counts.formatting, 2)
-  t.alike(texts(reopen(doc)), ['Keep gone', 'Styled', 'Joined ', 'tail', 'Moved', ''])
+  t.alike(texts(reopen(doc)), ['Keep gone', 'Styled', 'Joined ', 'tail', 'Moved', 'Middle', 'End'])
   const xml = body(doc)
   t.ok(xml.includes('<w:jc w:val="right"/>'))
   t.ok(xml.includes('<w:i/>'))
