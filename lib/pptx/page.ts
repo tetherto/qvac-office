@@ -15,7 +15,7 @@ export interface PageOptions {
 
 export interface SlidePage {
   slides: SlideInfo[]
-  next?: number
+  next?: { id: number }
 }
 
 export interface RunSource {
@@ -89,7 +89,7 @@ export function readPage(deck: slides.Deck, opts: PageOptions, reader: SlideRead
     const info = reader(all[index], index)
     const size = JSON.stringify(info).length
     if (out.length > 0 && used + size > budget) {
-      return { slides: out, next: index }
+      return { slides: out, next: { id: Number(all[index].id) } }
     }
 
     out.push(info)

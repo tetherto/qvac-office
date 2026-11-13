@@ -156,7 +156,8 @@ calls survives inserts, moves and deletes. A shape is `{ slide, shape }`, where 
   each paragraph also lists its runs and the formatting set on each (`bold`, `italic`,
   `underline`, `size`, `color`, `font`, `link`, `field`); inherited formatting is not resolved
 - `readPage({ from, maxChars, detail })` — `{ slides, next }`: stops before the slides' JSON
-  would pass `maxChars` (always at least one slide); pass `next` back as `from`. `read()` keeps
+  would pass `maxChars` (always at least one slide); `next` is the next slide's `{ id }`, so
+  passing it back as `from` resumes there even after slides are added or removed. `read()` keeps
   returning a plain array and refuses `maxChars`
 - `outline()` — per slide its index, id, layout, title, shape count, whether it has notes and
   its chart, table and picture counts
