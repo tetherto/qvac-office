@@ -143,6 +143,16 @@ test('unknown operations and keys name what exists', (t) => {
   t.is(missing.details?.field, 'cells')
 })
 
+test('setBox without a box field names the box', (t) => {
+  const deck = pptx.create()
+  deck.addSlide({})
+  const { id } = deck.addTextBox(0, { text: 'Hello' })
+  const error = failure(() => tools.apply(deck, { op: 'setBox', slide: 0, shape: id }))
+  t.is(error.code, 'INVALID_BOX')
+  t.is(error.details?.field, 'box')
+  t.alike(error.details?.expected, ['x', 'y', 'width', 'height'])
+})
+
 test('images arrive as base64 or a data URL', (t) => {
   const deck = pptx.create()
   deck.addSlide({})

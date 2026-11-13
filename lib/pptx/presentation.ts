@@ -397,13 +397,19 @@ function writeXfrm(el: Element, box: Box): void {
 
 function checkBox(box: unknown): Partial<Box> {
   if (!isRecord(box)) {
-    throw new DocsError('INVALID_BOX', 'box must be { x, y, width, height }')
+    throw new DocsError('INVALID_BOX', 'box must be { x, y, width, height }', {
+      field: 'box',
+      expected: BOX_KEYS
+    })
   }
 
   const keys = Object.keys(box)
   const empty = BOX_KEYS.every((key) => box[key] === undefined)
   if (empty || keys.some((k) => !['x', 'y', 'width', 'height'].includes(k))) {
-    throw new DocsError('INVALID_BOX', 'box takes x, y, width and height in EMU')
+    throw new DocsError('INVALID_BOX', 'box takes x, y, width and height in EMU', {
+      field: 'box',
+      expected: BOX_KEYS
+    })
   }
 
   const out: Partial<Box> = {}
@@ -1269,9 +1275,8 @@ export class Presentation {
     target: ShapeRef,
     raw: units.WithLengths<Partial<Box>, units.BoxKey>
   ): PlacedShape {
-    const input = units.box(raw)
+    const box = checkBox(isRecord(raw) ? units.box(raw) : raw)
     const { entry, found } = this.locate(target)
-    const box = checkBox(input)
     const current = inherit.box({ pkg: this.package, slide: entry.part, el: found.el })
     const merged = { ...current, ...box }
     const { x, y, width, height } = merged
