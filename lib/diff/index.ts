@@ -35,8 +35,19 @@ export interface DiffOptions {
 
 type Input = Uint8Array | Doc
 
+interface Compared {
+  changes: Change[]
+  truncated: boolean
+}
+
+interface SheetCells {
+  values: Map<string, string>
+  truncated: boolean
+}
+
 const LIMIT = 200
 const EXCERPT = 120
+const CELLS = 1000000
 
 function kindOf<T>(edit: Edit<T>): ChangeKind {
   return edit.kind === 'same' ? 'changed' : edit.kind
@@ -139,8 +150,8 @@ function pptxChanges(before: pptx.Presentation, after: pptx.Presentation): Chang
   })
 }
 
-function cells(book: xlsx.Workbook, sheet: number): Map<string, string> {
-  const read = book.read(sheet)
+function cells(book: xlsx.Workbook, sheet: number): SheetCells {
+  const read = book.read(sheet, { limit: CELLS })
   const origin = refs.parse((read.range ?? 'A1').split(':')[0])
   const out = new Map<string, string>()
   read.rows.forEach((row, r) => {
@@ -153,7 +164,7 @@ function cells(book: xlsx.Workbook, sheet: number): Map<string, string> {
     })
   })
 
-  return out
+  return { values: out, truncated: read.truncated === true }
 }
 
 function cellKind(before: string | undefined, after: string | undefined): ChangeKind {
@@ -182,28 +193,34 @@ function worksheets(book: xlsx.Workbook): Map<string, number> {
   return new Map(sheets.map((s) => [s.name, s.index]))
 }
 
-function xlsxChanges(before: xlsx.Workbook, after: xlsx.Workbook): Change[] {
+function xlsxChanges(before: xlsx.Workbook, after: xlsx.Workbook): Compared {
   const a = worksheets(before)
   const b = worksheets(after)
-
-  return [...new Set([...a.keys(), ...b.keys()])].flatMap((name): Change[] => {
+  let truncated = false
+  const changes = [...new Set([...a.keys(), ...b.keys()])].flatMap((name): Change[] => {
     const i = a.get(name)
     const j = b.get(name)
     if (i === undefined || j === undefined) {
       return [{ kind: i === undefined ? 'added' : 'removed', where: `sheet ${name}` }]
     }
 
-    return sheetChanges(name, cells(before, i), cells(after, j))
+    const x = cells(before, i)
+    const y = cells(after, j)
+    truncated ||= x.truncated || y.truncated
+
+    return sheetChanges(name, x.values, y.values)
   })
+
+  return { changes, truncated }
 }
 
-function changesOf(a: Doc, b: Doc): Change[] {
+function changesOf(a: Doc, b: Doc): Compared {
   if (a instanceof docx.Document && b instanceof docx.Document) {
-    return docxChanges(a, b)
+    return { changes: docxChanges(a, b), truncated: false }
   }
 
   if (a instanceof pptx.Presentation && b instanceof pptx.Presentation) {
-    return pptxChanges(a, b)
+    return { changes: pptxChanges(a, b), truncated: false }
   }
 
   if (a instanceof xlsx.Workbook && b instanceof xlsx.Workbook) {
@@ -226,7 +243,7 @@ function load(input: Input): Doc {
 
 export function diff(before: Input, after: Input, opts: DiffOptions = {}): Diff {
   const a = load(before)
-  const all = changesOf(a, load(after))
+  const { changes: all, truncated } = changesOf(a, load(after))
   const limit = opts.limit ?? LIMIT
   const excerpt = opts.excerpt ?? EXCERPT
   const changes = all.slice(0, limit).map((change) => ({
@@ -239,5 +256,5 @@ export function diff(before: Input, after: Input, opts: DiffOptions = {}): Diff 
     counts[change.kind]++
   }
 
-  return { format: formatOf(a), changes, counts, truncated: all.length > limit }
+  return { format: formatOf(a), changes, counts, truncated: truncated || all.length > limit }
 }

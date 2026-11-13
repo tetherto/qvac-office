@@ -58,3 +58,27 @@ test('an Excel diff lists cells and sheets, and truncates long lists', (t) => {
 test('diff refuses two different formats', (t) => {
   t.exception(() => diff.diff(docx.create().save(), xlsx.create().save()), /one format/)
 })
+
+test('an Excel diff compares cells past the first ten thousand', (t) => {
+  const before = xlsx.create()
+  before.setCells(0, { A1: 1, AX300: 2, A290: 3 })
+  const after = xlsx.open(before.save())
+  after.setCells(0, { A290: 4 })
+
+  const result = diff.diff(before.save(), after.save())
+  t.alike(
+    result.changes.map((c) => c.where),
+    ['Sheet1!A290']
+  )
+  t.is(result.truncated, false)
+})
+
+test('an Excel diff says it is truncated when a sheet is too large to compare', (t) => {
+  const before = xlsx.create()
+  before.setCells(0, { A1: 1, Z50000: 2 })
+  const after = xlsx.open(before.save())
+  after.setCells(0, { Z50000: 3 })
+
+  const result = diff.diff(before.save(), after.save())
+  t.is(result.truncated, true)
+})
